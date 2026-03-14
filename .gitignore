@@ -32,6 +32,10 @@ node_modules/
 .DS_Store
 Thumbs.db
 
+# Large model files
+*.bin
+segundo/backend/models/
+
 # Database
 *.db
 *.sqlite3
