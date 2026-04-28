@@ -1,304 +1,437 @@
-# Guía de instalación y configuración — Segundo
+# Guía de instalación de Segundo
 
-Guía completa para levantar Segundo en una PC nueva, configurar el modelo de IA y resolver problemas comunes.
+Esta guía te lleva paso a paso desde una PC vacía hasta tener Segundo corriendo en tu navegador.
 
----
-
-## 1. Modelo de IA
-
-Segundo soporta **dos proveedores de LLM** y se cambia con una sola variable de entorno.
-
-| Proveedor | Variable | Costo | Calidad | Requisitos |
-|---|---|---|---|---|
-| **Ollama** (default) | `LLM_PROVIDER=ollama` | Gratis | Media | Servidor Ollama local + modelo descargado |
-| **Claude** (Anthropic) | `LLM_PROVIDER=claude` | Pago | Alta | API key de Anthropic |
-
-### Modelos por defecto
-
-- **Ollama** → `llama3.2` (definido en `backend/app/services/claude.py`)
-- **Claude** → `claude-sonnet-4-6` (definido en `backend/app/services/claude.py`)
-
-### Cambiar el modelo de Ollama
-
-Si quieres usar otro modelo (por ejemplo `llama3.1`, `mistral`, `qwen2.5`), edita la constante en `backend/app/services/claude.py`:
-
-```python
-OLLAMA_MODEL = "llama3.2"   # cambia aquí
-```
-
-Luego descárgalo con `ollama pull <modelo>`.
-
-### Cambiar entre proveedores
-
-Solo edita el `.env` del backend y reinicia uvicorn:
-
-```env
-# Para Ollama (gratis)
-LLM_PROVIDER=ollama
-
-# Para Claude (pago, mejor calidad)
-LLM_PROVIDER=claude
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
-> **Nota técnica**: el código está diseñado para ser provider-agnostic. Todos los agentes llaman a `app.services.claude.complete()` que despacha al provider activo. Cambiar de provider **no requiere modificar agentes ni endpoints**.
+> **Importante sobre los comandos:** cada bloque de código indica si es para **PowerShell (Windows)** o **Bash (Mac/Linux)**. Los comandos cambian entre sistemas operativos — copia el bloque que corresponde al tuyo.
 
 ---
 
-## 2. Requisitos del sistema
+## Tabla de contenido
 
-### Software base (todos los casos)
+1. [Lo que vas a instalar](#1-lo-que-vas-a-instalar)
+2. [Instalar el software base](#2-instalar-el-software-base)
+3. [Clonar el repositorio](#3-clonar-el-repositorio)
+4. [Configurar la base de datos en Supabase](#4-configurar-la-base-de-datos-en-supabase)
+5. [Configurar el backend](#5-configurar-el-backend)
+6. [Configurar el frontend](#6-configurar-el-frontend)
+7. [Configurar el modelo de IA](#7-configurar-el-modelo-de-ia)
+8. [Levantar la aplicación](#8-levantar-la-aplicación)
+9. [Verificar que todo funciona](#9-verificar-que-todo-funciona)
+10. [Solución de problemas](#10-solución-de-problemas)
 
-| Software | Versión mínima | Link |
-|---|---|---|
-| Python | 3.11+ | https://www.python.org/downloads/ |
-| Node.js | 20 LTS | https://nodejs.org/ |
-| Git | cualquiera reciente | https://git-scm.com/ |
+---
 
-> No necesitas instalar PostgreSQL local: Segundo usa Supabase (gestionado en la nube).
+## 1. Lo que vas a instalar
 
-### Si vas a usar Ollama (default)
-
-| Software | Para qué |
+| Componente | Para qué |
 |---|---|
-| [Ollama](https://ollama.com/) | Servidor local de LLMs |
-| Modelo `llama3.2` | `ollama pull llama3.2` (~2 GB) |
+| Python 3.11+ | Lenguaje del backend |
+| Node.js 20+ | Para el frontend (React) |
+| Git | Para clonar el repositorio |
+| Ollama (opcional) | Modelo de IA gratis y local |
 
-### Si vas a usar Claude
-
-- Una **API key de Anthropic** ([console.anthropic.com](https://console.anthropic.com/))
-
-### Servicios opcionales
-
-| Servicio | Si lo activas |
-|---|---|
-| **Voyage AI** ([voyageai.com](https://voyageai.com)) | Embeddings reales (mejor búsqueda semántica) |
-| **Groq** ([console.groq.com](https://console.groq.com/)) | Transcripción de voz (botón de micrófono) |
+**No instalas PostgreSQL** — la base de datos vive en Supabase.
 
 ---
 
-## 3. Instalación paso a paso
+## 2. Instalar el software base
 
-### Paso 1 — Clonar el repositorio
+### Windows
+
+1. **Python 3.11+**
+   - Descargar de https://www.python.org/downloads/
+   - Durante la instalación marcar la casilla **"Add Python to PATH"**.
+
+2. **Node.js 20 LTS**
+   - Descargar de https://nodejs.org/ (versión LTS).
+   - Instalar con las opciones por defecto.
+
+3. **Git**
+   - Descargar de https://git-scm.com/download/win
+   - Instalar con las opciones por defecto.
+
+4. Verificar que todo quedó instalado abriendo **PowerShell** y ejecutando:
+
+   ```powershell
+   python --version
+   node --version
+   git --version
+   ```
+
+   Debes ver tres versiones. Si alguna falla con "command not found", reinicia la PC y prueba de nuevo.
+
+### Mac
 
 ```bash
+# Instalar Homebrew si no lo tienes: https://brew.sh
+brew install python@3.11 node@20 git
+```
+
+### Linux (Ubuntu/Debian)
+
+```bash
+sudo apt update
+sudo apt install python3.11 python3.11-venv python3-pip nodejs npm git
+```
+
+---
+
+## 3. Clonar el repositorio
+
+### Windows (PowerShell)
+
+```powershell
+cd $HOME\Desktop
+git clone https://github.com/Camilo4232/agent_induccion.git
+cd agent_induccion\segundo
+```
+
+### Mac/Linux (Bash)
+
+```bash
+cd ~/Desktop
 git clone https://github.com/Camilo4232/agent_induccion.git
 cd agent_induccion/segundo
 ```
 
-### Paso 2 — Base de datos (Supabase)
+---
 
-Segundo usa **Supabase** como base de datos gestionada (Postgres + pgvector en la nube). **No instalas Postgres local** — la DB vive en los servidores de Supabase y todas las PCs se conectan a la misma.
+## 4. Configurar la base de datos en Supabase
 
-#### Si el proyecto Supabase ya existe
+La DB ya existe en la nube. Solo necesitas la **connection string** para conectarte.
 
-Caso típico cuando se agrega una nueva PC al equipo:
+### Opción A — Te dieron acceso a un proyecto existente
 
-1. Pide la connection string al admin del proyecto, o cópiala desde **Project Settings → Database → Connection pooling → Transaction**.
-2. Pégala en `backend/.env` cambiando el prefijo `postgresql://` por `postgresql+asyncpg://`:
-   ```env
-   DATABASE_URL=postgresql+asyncpg://postgres.xxx:password@aws-0-us-east-2.pooler.supabase.com:6543/postgres
+1. Pide al admin del proyecto la **connection string** (formato `postgresql://...`).
+2. Si el proyecto está pausado: entra a https://supabase.com/dashboard, abre el proyecto y haz clic en **"Restore project"**. Espera 1-2 minutos.
+3. Continúa con el paso 5.
+
+### Opción B — Vas a crear un proyecto nuevo
+
+1. Crea cuenta en https://supabase.com y un proyecto nuevo.
+2. Una vez creado, ve a **SQL editor** (en el menú lateral) y ejecuta:
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS vector;
    ```
-3. **No corras `alembic upgrade head`** — las tablas ya existen. Salta directo a `uvicorn` en el paso 3.
-
-> **Si el proyecto está pausado** (el plan free se pausa tras 7 días sin uso), entra al dashboard de Supabase y haz clic en **"Restore project"**. Tarda 1-2 minutos.
-
-#### Si arrancas desde cero (proyecto Supabase nuevo)
-
-1. Crea un proyecto en [supabase.com](https://supabase.com).
-2. SQL editor → `CREATE EXTENSION IF NOT EXISTS vector;`
-3. Copia la connection string como en el caso anterior.
-4. **Esta vez sí** ejecuta `alembic upgrade head` después de configurar el `.env` — crea las 12 tablas.
-
-### Paso 3 — Backend
-
-```bash
-cd backend
-
-# Crear virtualenv
-python -m venv venv
-source venv/bin/activate          # Windows: venv\Scripts\activate
-
-# Instalar dependencias
-pip install -r requirements.txt
-
-# Copiar y editar .env
-cp .env.example .env
-# editar .env con tus credenciales
-
-# Levantar el servidor
-uvicorn main:app --reload
-```
-
-API disponible en `http://localhost:8000`. Documentación interactiva en `http://localhost:8000/docs`.
-
-### Paso 4 — Frontend
-
-```bash
-cd ../frontend
-
-# Crear el .env apuntando al backend
-echo "VITE_API_URL=http://localhost:8000" > .env
-
-# Instalar y levantar
-npm install
-npm run dev
-```
-
-Aplicación disponible en `http://localhost:5173`.
-
-### Paso 5 — Si elegiste Ollama
-
-```bash
-# En otra terminal (Ollama corre como servicio)
-ollama serve
-
-# Descargar el modelo
-ollama pull llama3.2
-```
-
-Verifica que Ollama está corriendo: `curl http://localhost:11434/api/tags`
+3. Ve a **Project Settings → Database → Connection pooling**, modo **Transaction**, y copia la URI.
+4. Continúa con el paso 5. Más tarde, en el paso 8, vas a ejecutar `alembic upgrade head` para crear las tablas.
 
 ---
 
-## 4. Configuración mínima del `.env`
+## 5. Configurar el backend
 
-### Setup gratis (Ollama + mock embeddings)
+Todo este paso se hace dentro de la carpeta `segundo/backend/`.
+
+### 5.1 — Entrar a la carpeta y crear el entorno virtual
+
+**Windows (PowerShell):**
+
+```powershell
+cd backend
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+```
+
+> Si PowerShell te dice *"no se pueden cargar scripts"*, ejecuta primero:
+> ```powershell
+> Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+> ```
+> y vuelve a intentar.
+
+**Mac/Linux (Bash):**
+
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+```
+
+> Cuando el entorno está activado, verás `(venv)` al inicio de la línea de la terminal.
+
+### 5.2 — Instalar las dependencias
+
+Mismo comando para todos los sistemas (con el venv activado):
+
+```
+pip install -r requirements.txt
+```
+
+Esto tarda 1-2 minutos.
+
+### 5.3 — Crear el archivo `.env`
+
+**Windows (PowerShell):**
+
+```powershell
+Copy-Item .env.example .env
+notepad .env
+```
+
+**Mac/Linux (Bash):**
+
+```bash
+cp .env.example .env
+nano .env       # o code .env si usas VS Code
+```
+
+Ahora edita el `.env`. Como mínimo necesitas configurar:
 
 ```env
-DATABASE_URL=postgresql+asyncpg://postgres.xxx:password@aws-0-us-east-2.pooler.supabase.com:6543/postgres
-JWT_SECRET=usar-secrets-token-urlsafe-de-48-caracteres-aqui-min
+DATABASE_URL=postgresql+asyncpg://postgres.xxx:PASSWORD@aws-0-us-east-2.pooler.supabase.com:6543/postgres
+JWT_SECRET=pega-aqui-un-string-aleatorio-de-48-caracteres
 LLM_PROVIDER=ollama
 CORS_ORIGINS=http://localhost:5173
 ```
 
-> Funciona, pero los embeddings son un mock determinístico — la búsqueda semántica es pobre. Sirve para desarrollo y pruebas.
+**Cómo obtener cada valor:**
 
-### Setup recomendado (Claude + Voyage + Groq)
+- `DATABASE_URL`: la connection string del paso 4. **Importante:** cambia el prefijo `postgresql://` por `postgresql+asyncpg://`.
+- `JWT_SECRET`: ejecuta este comando en otra terminal y pega lo que sale:
+
+  ```
+  python -c "import secrets; print(secrets.token_urlsafe(48))"
+  ```
+
+- `LLM_PROVIDER`: déjalo en `ollama` por ahora (es gratis). Si después quieres usar Claude, cambia a `claude` y agrega tu `ANTHROPIC_API_KEY`.
+
+Guarda y cierra el archivo.
+
+---
+
+## 6. Configurar el frontend
+
+Sal de la carpeta backend y entra a frontend.
+
+**Windows (PowerShell):**
+
+```powershell
+cd ..\frontend
+"VITE_API_URL=http://localhost:8000" | Out-File -Encoding utf8 .env
+npm install
+```
+
+**Mac/Linux (Bash):**
+
+```bash
+cd ../frontend
+echo "VITE_API_URL=http://localhost:8000" > .env
+npm install
+```
+
+`npm install` tarda 1-2 minutos.
+
+---
+
+## 7. Configurar el modelo de IA
+
+Segundo soporta dos opciones. Elige una.
+
+### Opción A — Ollama (gratis, local) — recomendado para empezar
+
+1. Descargar e instalar Ollama desde https://ollama.com/download
+2. Una vez instalado, abre una terminal **nueva** (no la del backend ni la del frontend) y ejecuta:
+
+   ```
+   ollama pull llama3.2
+   ```
+
+   Esto descarga el modelo (~2 GB).
+
+3. Ollama corre como servicio en segundo plano automáticamente. Verifícalo con:
+
+   ```
+   curl http://localhost:11434/api/tags
+   ```
+
+   Debes ver una lista en JSON con los modelos descargados.
+
+4. En `backend/.env` deja `LLM_PROVIDER=ollama` (ya quedó así desde el paso 5).
+
+### Opción B — Claude (pago, mejor calidad)
+
+1. Crear cuenta en https://console.anthropic.com y generar una API key.
+2. Editar `backend/.env`:
+
+   ```env
+   LLM_PROVIDER=claude
+   ANTHROPIC_API_KEY=sk-ant-tu-key-aqui
+   ```
+
+---
+
+## 8. Levantar la aplicación
+
+Necesitas **dos terminales abiertas** (tres si usas Ollama).
+
+### Terminal 1 — Backend
+
+**Windows (PowerShell):**
+
+```powershell
+cd C:\Users\TU_USUARIO\Desktop\agent_induccion\segundo\backend
+.\venv\Scripts\Activate.ps1
+uvicorn main:app --reload
+```
+
+**Mac/Linux (Bash):**
+
+```bash
+cd ~/Desktop/agent_induccion/segundo/backend
+source venv/bin/activate
+uvicorn main:app --reload
+```
+
+> Solo si es un proyecto Supabase nuevo (Opción B del paso 4), antes de `uvicorn` ejecuta una sola vez:
+> ```
+> alembic upgrade head
+> ```
+
+Espera a ver:
+```
+INFO:     Uvicorn running on http://127.0.0.1:8000
+INFO:     Application startup complete.
+```
+
+### Terminal 2 — Frontend
+
+**Windows (PowerShell):**
+
+```powershell
+cd C:\Users\TU_USUARIO\Desktop\agent_induccion\segundo\frontend
+npm run dev
+```
+
+**Mac/Linux (Bash):**
+
+```bash
+cd ~/Desktop/agent_induccion/segundo/frontend
+npm run dev
+```
+
+Espera a ver:
+```
+VITE v5.x.x  ready in xxx ms
+➜  Local:   http://localhost:5173/
+```
+
+### Terminal 3 — Ollama (solo si elegiste Opción A en paso 7)
+
+Ollama corre solo como servicio. No necesitas hacer nada extra.
+
+---
+
+## 9. Verificar que todo funciona
+
+1. **Backend OK:** abrir http://localhost:8000/health en el navegador. Debes ver:
+   ```json
+   {"status":"ok","version":"2.1.0",...}
+   ```
+
+2. **Frontend OK:** abrir http://localhost:5173 — debes ver la página de login de Segundo.
+
+3. **Conexión front ↔ back OK:** en la página de login, hacer clic en **"Entrar como Dueño"**. Si te redirige al dashboard, todo está funcionando.
+
+4. **Documentación interactiva del API:** http://localhost:8000/docs (Swagger).
+
+---
+
+## 10. Solución de problemas
+
+| Problema | Causa | Solución |
+|---|---|---|
+| `python` no se reconoce | No marcaste "Add to PATH" al instalar | Reinstalar Python marcando esa casilla, o reiniciar la PC |
+| `cannot be loaded because running scripts is disabled` (PowerShell) | Política de ejecución restringida | `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned` |
+| `ModuleNotFoundError: No module named 'fastapi'` | Olvidaste activar el venv | Ejecutar de nuevo `.\venv\Scripts\Activate.ps1` (Win) o `source venv/bin/activate` (Mac/Linux) |
+| `JWT_SECRET debe tener al menos 32 caracteres` | El valor en `.env` es muy corto | Generar uno con `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
+| `extension "vector" does not exist` | No corriste `CREATE EXTENSION vector` en Supabase | Ir al SQL editor de Supabase y ejecutar `CREATE EXTENSION IF NOT EXISTS vector;` |
+| `Connection refused` al preguntar algo | Ollama no está corriendo | Verificar con `curl http://localhost:11434/api/tags` — si falla, abrir Ollama |
+| `model 'llama3.2' not found` | No descargaste el modelo | `ollama pull llama3.2` |
+| El frontend dice "No se pudo iniciar el modo demo" | `VITE_API_URL` apunta al puerto incorrecto | Verificar que `frontend/.env` diga `VITE_API_URL=http://localhost:8000` y reiniciar `npm run dev` |
+| El proyecto Supabase está "Paused" | Plan free se pausa tras 7 días sin uso | En el dashboard de Supabase clickear "Restore project" |
+| `psycopg2` falla al instalar (Mac/Linux) | Falta `libpq-dev` | Linux: `sudo apt install libpq-dev` · Mac: `brew install postgresql` |
+| Búsqueda semántica devuelve resultados raros | Estás usando embeddings mock | Configurar `VOYAGE_API_KEY` en `.env` |
+| El botón de voz no transcribe | Falta `GROQ_API_KEY` | Configurar la key en `.env` |
+| Error 401 después de un rato | Token JWT expirado (24h) | Cerrar sesión y volver a entrar |
+| `RateLimitExceeded` en `/ask` | Más de 10 preguntas por minuto | Esperar 1 minuto |
+
+---
+
+## Estructura del repositorio
+
+```
+agent_induccion/
+└── segundo/
+    ├── README.md             ← overview corto
+    ├── INSTALL.md            ← este archivo
+    ├── docs/                 ← documentación detallada
+    ├── backend/
+    │   ├── main.py           ← entrada de FastAPI
+    │   ├── requirements.txt
+    │   ├── .env.example      ← copiar a .env y editar
+    │   ├── alembic/          ← migraciones de DB
+    │   └── app/
+    │       ├── core/         ← config + JWT
+    │       ├── db/           ← modelos + schemas
+    │       ├── services/     ← claude.py (switch LLM), embeddings.py
+    │       ├── agents/       ← orchestrator + sub-agents
+    │       └── api/          ← routers HTTP
+    └── frontend/
+        ├── package.json
+        ├── vite.config.js
+        └── src/
+            ├── pages/        ← Login, Register, OwnerDashboard, EmployeeChat
+            ├── components/   ← ChatInput, VoiceButton, KnowledgeCard, ...
+            ├── services/     ← api.js (axios + auto-refresh JWT)
+            └── store/        ← Zustand (auth)
+```
+
+---
+
+## Comandos de referencia rápida
+
+Una vez instalado, estos son los comandos que vas a usar día a día:
+
+### Iniciar todo (con la app ya instalada)
+
+**Windows (PowerShell), terminal 1:**
+```powershell
+cd C:\Users\TU_USUARIO\Desktop\agent_induccion\segundo\backend
+.\venv\Scripts\Activate.ps1
+uvicorn main:app --reload
+```
+
+**Windows (PowerShell), terminal 2:**
+```powershell
+cd C:\Users\TU_USUARIO\Desktop\agent_induccion\segundo\frontend
+npm run dev
+```
+
+### Detener la aplicación
+
+En cada terminal, presiona `Ctrl+C`.
+
+### Actualizar el código desde GitHub
+
+```
+cd agent_induccion
+git pull
+```
+
+Después, si cambió `requirements.txt`, vuelve a ejecutar `pip install -r requirements.txt` con el venv activado. Si cambió `package.json`, ejecuta `npm install` en `frontend/`.
+
+---
+
+## Cambiar entre Ollama y Claude
+
+Solo edita `backend/.env` y reinicia el backend (Ctrl+C y volver a ejecutar `uvicorn main:app --reload`).
 
 ```env
-DATABASE_URL=postgresql+asyncpg://postgres.xxx:password@aws-0-us-east-2.pooler.supabase.com:6543/postgres
-JWT_SECRET=usar-secrets-token-urlsafe-de-48-caracteres-aqui-min
+# Para Ollama
+LLM_PROVIDER=ollama
+
+# Para Claude
 LLM_PROVIDER=claude
 ANTHROPIC_API_KEY=sk-ant-...
-VOYAGE_API_KEY=pa-...
-GROQ_API_KEY=gsk_...
-CORS_ORIGINS=http://localhost:5173
 ```
 
-### Generar `JWT_SECRET`
-
-```bash
-python -c "import secrets; print(secrets.token_urlsafe(48))"
-```
-
----
-
-## 5. Arquitectura
-
-```
-Frontend (Vite/React :5173)
-    │
-    │ HTTP + JWT
-    ▼
-Backend FastAPI (:8000)
-    │
-    ├── /auth, /teach, /ask, /knowledge, /transcribe, ...
-    │
-    ├── agents/
-    │   ├── orchestrator   ← decide qué sub-agentes llamar (tool use)
-    │   ├── sub_agents     ← ventas / operaciones / clientes / general
-    │   ├── memory_agent   ← extrae hechos del owner
-    │   └── consistency    ← detecta conflictos
-    │
-    └── services/
-        ├── claude.py      ← switch Ollama / Claude
-        └── embeddings.py  ← Voyage / mock
-
-Supabase (Postgres + pgvector)  ← almacena hechos + embeddings 1536-d
-```
-
-Detalles completos en [`docs/README.md`](docs/README.md).
-
----
-
-## 6. Comandos útiles
-
-```bash
-# Ver Swagger / probar endpoints
-http://localhost:8000/docs
-
-# Health check
-curl http://localhost:8000/health
-
-# Login demo (sin registrarse)
-curl -X POST http://localhost:8000/auth/demo \
-  -H "Content-Type: application/json" \
-  -d '{"role":"owner"}'
-
-# Ver modelo de Ollama activo
-curl http://localhost:11434/api/tags
-
-# Limpiar cache de embeddings
-curl -X POST http://localhost:8000/admin/clear-cache
-```
-
----
-
-## 7. Troubleshooting
-
-| Error | Causa | Solución |
-|---|---|---|
-| `ModuleNotFoundError: No module named 'fastapi'` | venv no activado | `source venv/bin/activate` |
-| `ModuleNotFoundError: No module named 'anthropic'` | Falta dependencia | `pip install -r requirements.txt` |
-| `extension "vector" does not exist` | pgvector no instalado en la DB | `CREATE EXTENSION vector;` en SQL editor de Supabase |
-| `JWT_SECRET debe tener al menos 32 caracteres` | Validación de config | Generar con `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
-| `Connection refused` al hacer `/ask` con Ollama | Ollama no está corriendo | `ollama serve` en otra terminal |
-| `model 'llama3.2' not found` | Modelo no descargado | `ollama pull llama3.2` |
-| `401 Unauthorized` en `/ask` | JWT expirado | Hacer login de nuevo en el frontend |
-| `psycopg2` falla al instalar (Linux/Mac) | Falta `libpq-dev` | Linux: `sudo apt install libpq-dev` · Mac: `brew install postgresql` |
-| Búsqueda semántica devuelve cualquier cosa | Estás usando mock embeddings | Configurar `VOYAGE_API_KEY` |
-| Botón de voz no transcribe | Falta `GROQ_API_KEY` | Configurar la key en `.env` |
-| `RateLimitExceeded` en `/ask` | Pasaste el límite (10/min default) | Esperar 1 minuto o subir `ASK_RATE_LIMIT` |
-| CORS error en navegador | Origen del frontend no listado | Agregar URL a `CORS_ORIGINS` (separar con coma) |
-| `No se pudo iniciar el modo demo` en el frontend | `VITE_API_URL` apunta al puerto incorrecto | Verificar que `frontend/.env` tenga `VITE_API_URL=http://localhost:8000` |
-| Proyecto Supabase pausado | Inactividad > 7 días en plan free | Restaurar desde dashboard de Supabase |
-
----
-
-## 8. Estructura del repositorio
-
-```
-segundo/
-├── README.md             ← overview corto
-├── INSTALL.md            ← este archivo
-├── docs/                 ← documentación detallada (endpoints, security, mejoras)
-├── backend/
-│   ├── main.py           ← FastAPI app
-│   ├── requirements.txt
-│   ├── alembic/          ← migraciones
-│   └── app/
-│       ├── core/         ← config + JWT
-│       ├── db/           ← modelos + schemas
-│       ├── services/     ← claude.py (switch LLM), embeddings.py
-│       ├── agents/       ← orchestrator + sub-agents
-│       └── api/          ← routers HTTP
-└── frontend/
-    ├── package.json
-    ├── vite.config.js
-    └── src/
-        ├── pages/        ← Login, Register, OwnerDashboard, EmployeeChat
-        ├── components/   ← ChatInput, VoiceButton, KnowledgeCard, ...
-        ├── services/     ← api.js (axios + auto-refresh JWT)
-        └── store/        ← Zustand (auth)
-```
-
----
-
-## 9. Deployment
-
-- **Frontend** → Vercel: `vercel --prod` desde `segundo/frontend/`
-- **Backend** → cualquier host con Python (Render, Fly.io, Railway, VPS). Necesita Postgres con pgvector.
-- **DB** → Supabase es la opción más rápida (pgvector ya viene).
-
-> Si despliegas Ollama en producción, necesitas una VM con suficiente RAM (mínimo 8 GB para `llama3.2`). Para producción real, **se recomienda Claude** por velocidad y calidad.
+No hace falta tocar nada más del código.
