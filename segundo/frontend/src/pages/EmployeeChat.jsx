@@ -9,6 +9,10 @@ export default function EmployeeChat() {
   const [input, setInput] = useState('')
   const [sessionId, setSessionId] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [failedMessage, setFailedMessage] = useState(null)
+  const [slowWarning, setSlowWarning] = useState(false)
+  const [sessions, setSessions] = useState([])
+  const [showSessions, setShowSessions] = useState(false)
   const [briefing, setBriefing] = useState(null)
   const [loadingBriefing, setLoadingBriefing] = useState(false)
   const [voiceState, setVoiceState] = useState('idle') // 'idle' | 'recording' | 'transcribing'
@@ -20,6 +24,8 @@ export default function EmployeeChat() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  useEffect(() => { loadSessions() }, [])
 
   async function handleLoadBriefing() {
     setLoadingBriefing(true)
@@ -38,8 +44,13 @@ export default function EmployeeChat() {
     const question = input.trim()
     if (!question || loading) return
     setInput('')
+    setFailedMessage(null)
+    setSlowWarning(false)
     setMessages(prev => [...prev, { role: 'user', content: question }])
     setLoading(true)
+
+    // Show slow warning after 30s
+    const slowTimer = setTimeout(() => setSlowWarning(true), 30000)
 
     try {
       const { data } = await askAPI.ask(question, sessionId)
@@ -50,17 +61,61 @@ export default function EmployeeChat() {
         confidence: data.confidence,
         tools_used: data.tools_used || [],
         knowledge_flagged: data.knowledge_flagged || false,
+        sources: data.sources || [],
       }])
-    } catch {
+    } catch (err) {
+      const status = err.response?.status
+      let errorMsg = 'Hubo un error al contactar a Segundo.'
+      if (status === 429) errorMsg = 'Demasiadas preguntas seguidas. Espera un momento.'
+      else if (status === 500) errorMsg = 'Error del servidor. Intenta de nuevo.'
+      else if (!err.response) errorMsg = 'Sin conexión a internet. Verifica tu red.'
+
+      setFailedMessage({ question, error: errorMsg })
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Hubo un error al contactar a Segundo. Intenta de nuevo.',
-        confidence: 'none',
+        content: errorMsg,
+        confidence: 'error',
+        isError: true,
       }])
     } finally {
+      clearTimeout(slowTimer)
+      setSlowWarning(false)
       setLoading(false)
       setTimeout(() => inputRef.current?.focus(), 50)
     }
+  }
+
+  function handleRetry() {
+    if (failedMessage) {
+      setInput(failedMessage.question)
+      setFailedMessage(null)
+      // Remove the error message
+      setMessages(prev => prev.filter(m => !m.isError))
+      setTimeout(() => handleSend(), 50)
+    }
+  }
+
+  async function loadSessions() {
+    try {
+      const { data } = await askAPI.listSessions()
+      setSessions(data)
+    } catch {}
+  }
+
+  async function selectSession(id) {
+    setSessionId(id)
+    setMessages([])
+    try {
+      const { data } = await askAPI.getHistory(id)
+      setMessages(data.map(m => ({ role: m.role, content: m.content })))
+    } catch {}
+    setShowSessions(false)
+  }
+
+  function handleNewConversation() {
+    setSessionId(null)
+    setMessages([])
+    setShowSessions(false)
   }
 
   function handleKeyDown(e) {
@@ -89,6 +144,12 @@ export default function EmployeeChat() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{user?.email}</span>
           <button
+            onClick={() => { setShowSessions(s => !s); if (!showSessions) loadSessions() }}
+            style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}
+          >
+            Historial
+          </button>
+          <button
             onClick={() => { logout(); navigate('/login') }}
             style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}
           >
@@ -97,8 +158,61 @@ export default function EmployeeChat() {
         </div>
       </header>
 
+      {/* Sessions sidebar */}
+      {showSessions && (
+        <div style={{
+          background: 'var(--bg-card)', borderBottom: '1px solid var(--border)',
+          padding: '0.75rem 1rem', maxHeight: 300, overflowY: 'auto',
+        }}>
+          <div style={{ maxWidth: 660, margin: '0 auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Conversaciones recientes
+              </span>
+              <button
+                onClick={handleNewConversation}
+                style={{
+                  fontSize: 12, color: 'var(--accent)', background: 'none',
+                  border: '1px solid rgba(212,168,83,0.3)', borderRadius: 6,
+                  padding: '4px 10px', cursor: 'pointer',
+                }}
+              >
+                + Nueva
+              </button>
+            </div>
+            {sessions.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No hay conversaciones anteriores.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {sessions.map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => selectSession(s.id)}
+                    style={{
+                      background: s.id === sessionId ? 'rgba(212,168,83,0.08)' : 'transparent',
+                      border: '1px solid',
+                      borderColor: s.id === sessionId ? 'rgba(212,168,83,0.3)' : 'var(--border)',
+                      borderRadius: 8, padding: '8px 12px', textAlign: 'left',
+                      cursor: 'pointer', display: 'flex', justifyContent: 'space-between',
+                      alignItems: 'center', width: '100%',
+                    }}
+                  >
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', flex: 1 }}>
+                      {s.preview || 'Conversación vacía'}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0, marginLeft: 8 }}>
+                      {s.started_at ? new Date(s.started_at).toLocaleDateString() : ''}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Messages area */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem 1rem' }}>
+      <div id="main-content" style={{ flex: 1, overflowY: 'auto', padding: '1.5rem 1rem' }}>
         <div style={{ maxWidth: 660, margin: '0 auto' }}>
 
           {/* Empty state */}
@@ -166,7 +280,7 @@ export default function EmployeeChat() {
           )}
 
           {/* Messages */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} role="log" aria-live="polite">
             {messages.map((msg, i) => (
               <div key={i} className="fade-in" style={{ animationDelay: `${Math.min(i * 0.05, 0.3)}s` }}>
                 {msg.role === 'user' ? (
@@ -182,7 +296,7 @@ export default function EmployeeChat() {
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: 10, fontWeight: 700, color: 'var(--accent)',
                       }}>S</div>
-                      <div className="chat-bubble-assistant">{msg.content}</div>
+                      <div className="chat-bubble-assistant" style={msg.isError ? { borderColor: 'rgba(220,38,38,0.3)', background: 'rgba(220,38,38,0.04)' } : undefined}>{msg.content}</div>
                     </div>
                     {/* Badges */}
                     <div style={{ display: 'flex', gap: 6, marginTop: 6, marginLeft: 32, flexWrap: 'wrap' }}>
@@ -198,6 +312,18 @@ export default function EmployeeChat() {
                         </span>
                       )}
                     </div>
+                    {msg.sources && msg.sources.length > 0 && (
+                      <details style={{ marginTop: 6, marginLeft: 32, fontSize: 12, color: 'var(--text-muted)' }}>
+                        <summary style={{ cursor: 'pointer' }}>
+                          Basado en {msg.sources.length} hecho(s)
+                        </summary>
+                        <ul style={{ marginTop: 4, paddingLeft: 16, lineHeight: 1.6 }}>
+                          {msg.sources.map((s, idx) => (
+                            <li key={idx} style={{ color: 'var(--text-secondary)' }}>{s.fact}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
                   </div>
                 )}
               </div>
@@ -224,8 +350,30 @@ export default function EmployeeChat() {
                       animationDelay: `${i * 0.2}s`,
                     }} />
                   ))}
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
+                    Segundo está pensando...
+                  </span>
                 </div>
+                {slowWarning && (
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                    Está tardando más de lo normal. Puedes esperar o reintentar.
+                  </p>
+                )}
               </div>
+            </div>
+          )}
+          {failedMessage && !loading && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '0.5rem' }}>
+              <button
+                onClick={handleRetry}
+                style={{
+                  background: 'var(--bg-card)', border: '1px solid var(--border)',
+                  color: 'var(--text-secondary)', borderRadius: 8, padding: '6px 14px',
+                  fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                }}
+              >
+                Reintentar pregunta
+              </button>
             </div>
           )}
           <div ref={bottomRef} />
@@ -272,7 +420,7 @@ export default function EmployeeChat() {
 
           {/* Text input + send — only visible when idle */}
           {voiceState === 'idle' && (
-            <form onSubmit={handleSend} style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1 }}>
+            <form onSubmit={handleSend} role="search" style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1 }}>
               <input
                 ref={inputRef}
                 className="field-input"
@@ -289,6 +437,7 @@ export default function EmployeeChat() {
                 type="submit"
                 disabled={loading || !input.trim()}
                 style={{ width: 'auto', padding: '10px 18px', whiteSpace: 'nowrap' }}
+                aria-label="Enviar mensaje"
               >
                 {loading ? '...' : '→'}
               </button>

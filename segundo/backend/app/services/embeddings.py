@@ -1,9 +1,18 @@
 import math
 import hashlib
+import logging
 import httpx
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
+
 EMBED_DIM = 1536
+MAX_CACHE_SIZE = 500
+
+# In-memory LRU cache for query embeddings
+_embedding_cache: dict[str, list[float]] = {}
+_cache_hits = 0
+_cache_misses = 0
 
 
 def generate_embedding(text: str) -> list[float]:
@@ -18,11 +27,38 @@ def generate_embedding(text: str) -> list[float]:
         return _mock_embedding(text)
 
 
+def generate_embedding_cached(text: str) -> list[float]:
+    """Cached version for query embeddings. Don't use for knowledge entries being stored."""
+    global _cache_hits, _cache_misses
+    key = hashlib.sha256(text.encode()).hexdigest()
+    if key in _embedding_cache:
+        _cache_hits += 1
+        if (_cache_hits + _cache_misses) % 100 == 0:
+            total = _cache_hits + _cache_misses
+            logger.info("Embedding cache stats: hits=%d, misses=%d, rate=%.1f%%",
+                       _cache_hits, _cache_misses, _cache_hits / total * 100 if total else 0)
+        return _embedding_cache[key]
+    _cache_misses += 1
+    embedding = generate_embedding(text)
+    if len(_embedding_cache) >= MAX_CACHE_SIZE:
+        # Evict oldest entry
+        _embedding_cache.pop(next(iter(_embedding_cache)))
+    _embedding_cache[key] = embedding
+    return embedding
+
+
+def clear_embedding_cache():
+    """Clear the embedding cache. Called when new knowledge is taught."""
+    global _cache_hits, _cache_misses
+    _embedding_cache.clear()
+    _cache_hits = 0
+    _cache_misses = 0
+
+
 def _voyage_embed(text: str) -> list[float]:
     """Embed text using Voyage AI voyage-3 model."""
-    voyage_key = getattr(settings, "voyage_api_key", None)
+    voyage_key = settings.voyage_api_key
     if not voyage_key:
-        # Try using the ANTHROPIC_API_KEY as voyage key (some setups share it)
         raise ValueError("No VOYAGE_API_KEY configured")
 
     resp = httpx.post(

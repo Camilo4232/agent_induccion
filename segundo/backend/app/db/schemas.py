@@ -25,6 +25,7 @@ class TokenResponse(BaseModel):
     business_id: str
     user_id: str
     must_change_password: bool = False
+    refresh_token: Optional[str] = None
 
 
 # Teach
@@ -49,8 +50,11 @@ class KnowledgeEntryOut(BaseModel):
     raw_input: str
     processed_fact: str
     category: Optional[str]
+    domain: Optional[str] = "general"
+    sensitivity: Optional[str] = "public"
     created_at: datetime
     is_active: bool
+    usage_count: int = 0
 
     class Config:
         from_attributes = True
@@ -151,11 +155,13 @@ class ProposalOut(BaseModel):
 # Conflicts
 class ConflictOut(BaseModel):
     id: UUID
-    fact_a_id: UUID
-    fact_b_id: UUID
+    fact_a_id: Optional[UUID] = None
+    fact_b_id: Optional[UUID] = None
     explanation: Optional[str]
     resolved: bool
     created_at: datetime
+    fact_a_text: Optional[str] = None
+    fact_b_text: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -1,117 +1,68 @@
 # Segundo — Agente de Onboarding Institucional
 
+Agente interno para PyMEs latinoamericanas. El dueño le enseña cómo funciona el negocio y los empleados nuevos preguntan por chat.
+
 ## Stack
-- **Backend**: FastAPI + SQLAlchemy + pgvector + Anthropic SDK
-- **Frontend**: React 18 + Vite + Tailwind CSS + Zustand
-- **DB**: PostgreSQL 15 + pgvector (Supabase)
-- **Deploy**: Railway (backend) · Vercel (frontend)
 
----
+- **Backend**: FastAPI (async) + SQLAlchemy + pgvector + Anthropic / Ollama
+- **Frontend**: React 18 + Vite + Tailwind + Zustand
+- **DB**: PostgreSQL 15 + pgvector (Supabase recomendado)
+- **Embeddings**: Voyage AI (con fallback mock determinístico)
+- **Voz**: Groq Whisper API (opcional)
 
-## Setup local
+## Requisitos
 
-### Backend
+- Python 3.11+
+- Node.js 20+
+- PostgreSQL 15+ con extensión `pgvector`
+- Uno de:
+  - Ollama corriendo local con `llama3.2` (default, gratis), o
+  - API key de Anthropic
+
+## Setup
 
 ```bash
+# Backend
 cd backend
 python -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
+source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-
-cp .env.example .env
-# Edita .env con tus credenciales
-
-# Migraciones
+cp .env.example .env              # editar variables
 alembic upgrade head
+uvicorn main:app --reload         # http://localhost:8000
 
-# Servidor
-uvicorn main:app --reload
-```
-
-### Frontend
-
-```bash
+# Frontend (otra terminal)
 cd frontend
 npm install
-cp .env.example .env
-# VITE_API_URL=http://localhost:8000
-npm run dev
+npm run dev                       # http://localhost:5173
 ```
 
----
+## Variables de entorno (`backend/.env`)
 
-## Variables de entorno (backend)
+```env
+# Obligatorios
+DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/segundo
+JWT_SECRET=<32+ caracteres>
 
-| Variable | Descripción |
-|---|---|
-| `DATABASE_URL` | `postgresql+asyncpg://user:pass@host:5432/segundo` |
-| `ANTHROPIC_API_KEY` | Tu API key de Anthropic |
-| `JWT_SECRET` | Clave secreta para firmar tokens |
-| `JWT_EXPIRE_MINUTES` | Duración del token (default: 10080 = 7 días) |
-| `VOYAGE_API_KEY` | (Opcional) API key de Voyage AI para embeddings reales |
-| `CORS_ORIGINS` | Origins permitidos, separados por coma |
+# LLM provider — elegir uno
+LLM_PROVIDER=ollama               # default — requiere Ollama local
+# LLM_PROVIDER=claude
+# ANTHROPIC_API_KEY=sk-ant-...
 
-> Si no configuras `VOYAGE_API_KEY`, el sistema usa embeddings mock determinísticos
-> para desarrollo local. Para producción, obtén una clave en voyageai.com.
-
----
-
-## Endpoints principales
-
-| Método | Endpoint | Rol | Descripción |
-|---|---|---|---|
-| POST | `/auth/register` | Público | Registrar negocio + owner |
-| POST | `/auth/login` | Público | Login, retorna JWT |
-| POST | `/teach` | Owner | Enseñar al agente |
-| GET | `/knowledge` | Owner | Ver conocimiento guardado |
-| PATCH | `/knowledge/{id}` | Owner | Editar entrada |
-| DELETE | `/knowledge/{id}` | Owner | Eliminar entrada |
-| POST | `/ask` | Employee | Hacer una pregunta |
-| GET | `/sessions/{id}/history` | Employee | Historial de chat |
-| GET | `/unanswered` | Owner | Ver preguntas sin respuesta |
-| POST | `/unanswered/{id}/resolve` | Owner | Resolver + guardar respuesta |
-| POST | `/invite` | Owner | Invitar empleado |
-
-Docs interactivos: `http://localhost:8000/docs`
-
----
-
-## Correr el proyecto localmente (forma rápida)
-
-Desde la raíz del proyecto, abre **dos terminales**:
-
-**Terminal 1 — Backend:**
-```bash
-cd segundo/backend
-source venv/bin/activate   # Windows: venv\Scripts\activate
-uvicorn main:app --reload
-# Disponible en http://localhost:8000
+# Opcionales
+VOYAGE_API_KEY=pa-...             # sin esto, embeddings son un mock
+GROQ_API_KEY=gsk_...              # sin esto, no funciona el botón de voz
+CORS_ORIGINS=http://localhost:5173
 ```
 
-**Terminal 2 — Frontend:**
-```bash
-cd segundo/frontend
-npm run dev
-# Disponible en http://localhost:5173
-```
+## Documentación
 
-> Asegúrate de haber completado el setup (migraciones, `.env`, dependencias) antes de correr.
+- [`docs/README.md`](docs/README.md) — referencia completa de endpoints y arquitectura
+- [`docs/seguridad/SECURITY.md`](docs/seguridad/SECURITY.md) — plan de seguridad
+- [`docs/mejoras/MEJORAS.md`](docs/mejoras/MEJORAS.md) — roadmap
 
----
+## Endpoints útiles
 
-## Arquitectura de Agentes
-
-```
-/teach
-  └── Memory Agent
-        ├── Extrae hechos atómicos (Claude)
-        ├── Genera embedding (Voyage / mock)
-        └── Guarda en knowledge_entries
-
-/ask
-  └── Orchestrator
-        ├── Genera embedding de la pregunta
-        ├── Búsqueda semántica top-5 (cosine > 0.75)
-        ├── Response Agent (Claude con contexto)
-        └── Si confidence=none → guarda en unanswered_questions
-```
+- `GET /health` — status del servicio
+- `GET /docs` — Swagger interactivo
+- `POST /auth/demo` body `{"role":"owner"}` — login sin registrarse para probar

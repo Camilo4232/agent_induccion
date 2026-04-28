@@ -22,6 +22,12 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [demoLoading, setDemoLoading] = useState(null)
   const [showPassword, setShowPassword] = useState(false)
+  const [forgotMode, setForgotMode] = useState(false)
+  const [resetStep, setResetStep] = useState('request')
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetCode, setResetCode] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [resetMessage, setResetMessage] = useState('')
   const { setAuth } = useStore()
   const navigate = useNavigate()
 
@@ -39,6 +45,7 @@ export default function Login() {
         { email: identifier, role: data.role, business_id: data.business_id, id: data.user_id },
         data.access_token,
       )
+      if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token)
       if (data.must_change_password) {
         navigate('/change-password')
       } else {
@@ -61,11 +68,60 @@ export default function Login() {
           role: data.role, business_id: data.business_id, id: data.user_id },
         data.access_token,
       )
+      if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token)
       navigate(route)
     } catch (err) {
       setError('No se pudo iniciar el modo demo. Intenta de nuevo.')
     } finally {
       setDemoLoading(null)
+    }
+  }
+
+  async function handleForgotSubmit(e) {
+    e.preventDefault()
+    setError('')
+    setResetMessage('')
+    setLoading(true)
+    try {
+      const isPhone = resetEmail.startsWith('+') || /^\d{7,}$/.test(resetEmail.replace(/\s/g, ''))
+      const payload = isPhone
+        ? { phone: resetEmail.replace(/\s/g, '') }
+        : { email: resetEmail }
+      await authAPI.forgotPassword(payload)
+      setResetMessage('Código enviado. Revisa tu email o mensajes.')
+      setResetStep('verify')
+    } catch (err) {
+      setError(err.response?.data?.detail || 'No se pudo enviar el código. Verifica tus datos.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleResetSubmit(e) {
+    e.preventDefault()
+    setError('')
+    setResetMessage('')
+    setLoading(true)
+    try {
+      const isPhone = resetEmail.startsWith('+') || /^\d{7,}$/.test(resetEmail.replace(/\s/g, ''))
+      const payload = {
+        ...(isPhone ? { phone: resetEmail.replace(/\s/g, '') } : { email: resetEmail }),
+        code: resetCode,
+        new_password: newPassword,
+      }
+      await authAPI.resetPassword(payload)
+      setResetMessage('Contraseña actualizada correctamente.')
+      setResetCode('')
+      setNewPassword('')
+      setTimeout(() => {
+        setForgotMode(false)
+        setResetStep('request')
+        setResetMessage('')
+      }, 2000)
+    } catch (err) {
+      setError(err.response?.data?.detail || 'No se pudo cambiar la contraseña. Verifica el código.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -174,72 +230,162 @@ export default function Login() {
           </div>
 
           {error && <div className="alert-error">{error}</div>}
+          {resetMessage && <div className="alert-success">{resetMessage}</div>}
 
-          <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginBottom: '1rem' }}>
-            — o ingresa con tu cuenta —
-          </p>
-
-          <form onSubmit={handleSubmit}>
-            <div className="field-group">
-              <label className="field-label">Email o teléfono</label>
-              <input
-                className="field-input"
-                type="text"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="tu@negocio.com o +52 55 1234 5678"
-                required
-                autoFocus
-              />
-            </div>
-            <div className="field-group">
-              <label className="field-label">Contraseña</label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  className="field-input"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  style={{ paddingRight: '2.5rem' }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(v => !v)}
-                  style={{
-                    position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    color: 'var(--text-muted)', padding: 0, lineHeight: 1,
-                  }}
-                  tabIndex={-1}
-                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                >
-                  {showPassword ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                      <line x1="1" y1="1" x2="23" y2="23"/>
-                    </svg>
-                  ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                      <circle cx="12" cy="12" r="3"/>
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <div style={{ marginTop: '1.5rem' }}>
-              <button className="btn-primary" type="submit" disabled={loading}>
-                {loading ? 'Verificando...' : 'Ingresar →'}
-              </button>
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>
-                El sistema detecta automáticamente si eres dueño o empleado.
+          {!forgotMode ? (
+            <>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginBottom: '1rem' }}>
+                — o ingresa con tu cuenta —
               </p>
-            </div>
-          </form>
+
+              <form onSubmit={handleSubmit}>
+                <div className="field-group">
+                  <label className="field-label">Email o teléfono</label>
+                  <input
+                    className="field-input"
+                    type="text"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="tu@negocio.com o +52 55 1234 5678"
+                    required
+                    autoFocus
+                  />
+                </div>
+                <div className="field-group">
+                  <label className="field-label">Contraseña</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      className="field-input"
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      required
+                      style={{ paddingRight: '2.5rem' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(v => !v)}
+                      style={{
+                        position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        color: 'var(--text-muted)', padding: 0, lineHeight: 1,
+                      }}
+                      tabIndex={-1}
+                      aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    >
+                      {showPassword ? (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                          <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                          <line x1="1" y1="1" x2="23" y2="23"/>
+                        </svg>
+                      ) : (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                          <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '1.5rem' }}>
+                  <button className="btn-primary" type="submit" disabled={loading}>
+                    {loading ? 'Verificando...' : 'Ingresar →'}
+                  </button>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>
+                    El sistema detecta automáticamente si eres dueño o empleado.
+                  </p>
+                </div>
+              </form>
+
+              <button
+                type="button"
+                onClick={() => { setForgotMode(true); setError(''); setResetMessage('') }}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: 'var(--text-muted)', fontSize: 12, marginTop: 12,
+                  display: 'block', textAlign: 'center', width: '100%',
+                  textDecoration: 'underline', textUnderlineOffset: '3px',
+                }}
+              >
+                ¿Olvidaste tu contraseña?
+              </button>
+            </>
+          ) : (
+            <>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginBottom: '1rem' }}>
+                — recuperar contraseña —
+              </p>
+
+              {resetStep === 'request' ? (
+                <form onSubmit={handleForgotSubmit}>
+                  <div className="field-group">
+                    <label className="field-label">Email o teléfono</label>
+                    <input
+                      className="field-input"
+                      type="text"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      placeholder="tu@negocio.com o +52 55 1234 5678"
+                      required
+                      autoFocus
+                    />
+                  </div>
+                  <div style={{ marginTop: '1.5rem' }}>
+                    <button className="btn-primary" type="submit" disabled={loading}>
+                      {loading ? 'Enviando...' : 'Enviar código'}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={handleResetSubmit}>
+                  <div className="field-group">
+                    <label className="field-label">Código de verificación</label>
+                    <input
+                      className="field-input"
+                      type="text"
+                      value={resetCode}
+                      onChange={(e) => setResetCode(e.target.value)}
+                      placeholder="123456"
+                      maxLength={6}
+                      required
+                      autoFocus
+                    />
+                  </div>
+                  <div className="field-group">
+                    <label className="field-label">Nueva contraseña</label>
+                    <input
+                      className="field-input"
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                      required
+                    />
+                  </div>
+                  <div style={{ marginTop: '1.5rem' }}>
+                    <button className="btn-primary" type="submit" disabled={loading}>
+                      {loading ? 'Cambiando...' : 'Cambiar contraseña'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              <button
+                type="button"
+                onClick={() => { setForgotMode(false); setResetStep('request'); setError(''); setResetMessage('') }}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: 'var(--text-muted)', fontSize: 12, marginTop: 16,
+                  display: 'block', textAlign: 'center', width: '100%',
+                }}
+              >
+                ← Volver al login
+              </button>
+            </>
+          )}
 
           <div className="divider" />
 

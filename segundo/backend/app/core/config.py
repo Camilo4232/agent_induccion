@@ -5,12 +5,22 @@ from pydantic import field_validator
 
 class Settings(BaseSettings):
     database_url: str
-    redis_url: str = "redis://localhost:6379"
     anthropic_api_key: str = "placeholder-not-used"
     gemini_api_key: str = ""
+    voyage_api_key: str | None = None
+    llm_provider: str = "ollama"  # "ollama" | "claude"
     jwt_secret: str
-    jwt_expire_minutes: int = 1440  # 24 horas (antes 7 días)
+    jwt_expire_minutes: int = 1440  # 24 horas
+    jwt_refresh_expire_days: int = 7
+    ask_rate_limit: str = "10/minute"
     cors_origins: str = "http://localhost:5173"
+    # Search tuning
+    similarity_threshold: float = 0.75
+    search_top_k: int = 5
+    chat_history_limit: int = 6
+    # DB pool
+    db_pool_size: int = 10
+    db_max_overflow: int = 20
 
     @field_validator("jwt_secret")
     @classmethod

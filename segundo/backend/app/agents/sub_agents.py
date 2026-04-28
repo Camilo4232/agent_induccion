@@ -2,7 +2,11 @@
 Sub-agents v3 — Each specialist has its own identity, system prompt, and RAG scope.
 The orchestrator delegates to them; they reason and return a structured response.
 """
+import asyncio
 import json
+import logging
+import re
+import time
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 
@@ -10,6 +14,8 @@ from app.agents.search_tools import (
     search_ventas, search_operaciones, search_clientes, search_general,
 )
 from app.services.claude import complete
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Sub-agent definitions
@@ -107,6 +113,9 @@ async def run_sub_agent(
             "answer": None,  # signal: no context found
             "found_context": False,
             "entries": [],
+            "avg_similarity": 0,
+            "source_ids": [],
+            "source_facts": [],
         }
 
     context_lines = [
@@ -129,34 +138,19 @@ async def run_sub_agent(
     # Prefix the user question to reinforce role separation
     safe_question = f"[PREGUNTA DEL EMPLEADO]: {question}"
 
+    t_start = time.time()
     raw = complete(
         system=system,
         messages=[{"role": "user", "content": safe_question}],
         max_tokens=512,
     )
+    llm_ms = round((time.time() - t_start) * 1000, 2)
 
-    # Parse JSON response
-    import json as _json, re as _re
-    found = False
-    answer = ""
-    try:
-        match = _re.search(r'\{.*\}', raw, _re.DOTALL)
-        if match:
-            data = _json.loads(match.group())
-            found = bool(data.get("found", False))
-            answer = data.get("answer", "").strip()
-    except Exception:
-        pass
+    # Robust JSON parsing with multiple fallback strategies
+    found, answer = _parse_agent_response(raw)
 
-    # If LLM said found=true but gave empty answer, build answer from context directly
-    if found and not answer:
-        answer = " | ".join(e["processed_fact"] for e in entries[:3])
-
-    # Fallback: if JSON parsing failed AND we didn't get found=false, use raw text
-    if not answer and not _re.search(r'"found"\s*:\s*false', raw, _re.IGNORECASE):
-        answer = raw.strip()
-        no_info_phrases = ["no tengo esa inform", "no tengo inform", "not have information"]
-        found = not any(p in answer.lower() for p in no_info_phrases)
+    logger.info("Sub-agent %s: found=%s, answer_len=%d, entries=%d, llm_ms=%s",
+                domain, found, len(answer), len(entries), llm_ms)
 
     return {
         "domain": domain,
@@ -164,7 +158,42 @@ async def run_sub_agent(
         "answer": answer,
         "found_context": found,
         "entries": entries,
+        "avg_similarity": sum(e.get("similarity", 0) for e in entries) / len(entries) if entries else 0,
+        "source_ids": [e["id"] for e in entries] if found else [],
+        "source_facts": [e["processed_fact"] for e in entries] if found else [],
     }
+
+
+def _parse_agent_response(raw: str) -> tuple[bool, str]:
+    """Parse sub-agent JSON response with multiple fallback strategies."""
+    text = raw.strip()
+
+    # Strategy 1: Direct JSON parse
+    for attempt_text in [text, text.split("```")[1] if "```" in text else None]:
+        if attempt_text is None:
+            continue
+        try:
+            data = json.loads(attempt_text.strip().removeprefix("json").strip())
+            return bool(data.get("found", False)), data.get("answer", "").strip()
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    # Strategy 2: Regex extract first JSON object
+    match = re.search(r'\{[^{}]*"found"[^{}]*\}', text, re.DOTALL)
+    if not match:
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+    if match:
+        try:
+            data = json.loads(match.group())
+            return bool(data.get("found", False)), data.get("answer", "").strip()
+        except json.JSONDecodeError:
+            pass
+
+    # Strategy 3: If all parsing failed, treat raw text as answer
+    logger.warning("Sub-agent JSON parse failed, using raw text fallback: %s", text[:200])
+    no_info_phrases = ["no tengo esa inform", "no tengo inform", "not have information"]
+    found = not any(p in text.lower() for p in no_info_phrases)
+    return found, text
 
 
 async def run_parallel_sub_agents(
@@ -176,11 +205,26 @@ async def run_parallel_sub_agents(
     role: str = "employee",
 ) -> list[dict]:
     """
-    Runs multiple sub-agents sequentially and returns all results.
-    Only returns results that actually found context.
+    Runs multiple sub-agents in parallel and returns results that found context.
+    Individual agent failures are logged but don't block other agents.
     """
+    tasks = [
+        asyncio.wait_for(
+            run_sub_agent(domain, question, business_name, business_id, db, role=role),
+            timeout=30.0,
+        )
+        for domain in domains
+    ]
+
+    raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+
     results = []
-    for domain in domains:
-        result = await run_sub_agent(domain, question, business_name, business_id, db, role=role)
-        results.append(result)
+    for domain, r in zip(domains, raw_results):
+        if isinstance(r, asyncio.TimeoutError):
+            logger.warning("Sub-agent %s timed out after 30s", domain)
+        elif isinstance(r, Exception):
+            logger.warning("Sub-agent %s failed: %s", domain, str(r))
+        else:
+            results.append(r)
+
     return [r for r in results if r["found_context"]]

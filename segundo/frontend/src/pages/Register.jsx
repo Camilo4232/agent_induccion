@@ -23,6 +23,7 @@ export default function Register() {
         { email: form.email, role: data.role, business_id: data.business_id, id: data.user_id },
         data.access_token,
       )
+      if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token)
       navigate('/dashboard')
     } catch (err) {
       const detail = err.response?.data?.detail

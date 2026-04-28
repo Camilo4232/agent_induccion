@@ -1,5 +1,6 @@
 import os
 import secrets
+from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 from app.db.models import User, Business
@@ -47,6 +48,7 @@ async def login_user(email: str | None, phone: str | None, password: str, db: As
     user = result.scalar_one_or_none()
     if not user or not verify_password(password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales incorrectas")
+    user.last_login_at = datetime.utcnow()
     return user
 
 

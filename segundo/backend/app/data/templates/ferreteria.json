@@ -1,0 +1,14 @@
+{
+    "industry": "ferreteria",
+    "name": "Ferretería",
+    "facts": [
+        {"text": "Los cortes de madera tienen un costo adicional de $2.000 por corte", "category": "precios", "domain": "ventas"},
+        {"text": "Descuento del 10% en compras mayores a $500.000 para contratistas", "category": "precios", "domain": "ventas"},
+        {"text": "El proveedor de cemento entrega los martes y viernes", "category": "proveedores", "domain": "operaciones"},
+        {"text": "Los productos eléctricos requieren verificación de certificación antes de vender", "category": "procesos", "domain": "ventas"},
+        {"text": "Horario: lunes a viernes 7am-6pm, sábados 7am-2pm", "category": "horarios", "domain": "operaciones"},
+        {"text": "Las devoluciones de productos eléctricos usados no se aceptan", "category": "procesos", "domain": "ventas"},
+        {"text": "Clientes con cuenta corriente pueden comprar a crédito hasta $2.000.000", "category": "precios", "domain": "clientes"},
+        {"text": "El inventario de pinturas se revisa los primeros lunes de cada mes", "category": "procesos", "domain": "operaciones"}
+    ]
+}

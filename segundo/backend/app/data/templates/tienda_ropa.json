@@ -1,0 +1,14 @@
+{
+    "industry": "tienda_ropa",
+    "name": "Tienda de Ropa",
+    "facts": [
+        {"text": "Las devoluciones se aceptan dentro de 15 días con ticket de compra", "category": "procesos", "domain": "ventas"},
+        {"text": "El descuento máximo autorizado por vendedor es 15% en mercancía de temporada pasada", "category": "precios", "domain": "ventas"},
+        {"text": "Los cambios de talla se hacen sin costo adicional", "category": "procesos", "domain": "ventas"},
+        {"text": "El inventario se actualiza todos los lunes al abrir", "category": "procesos", "domain": "operaciones"},
+        {"text": "Clientes VIP tienen acceso a preventa 3 días antes de temporada nueva", "category": "procesos", "domain": "clientes"},
+        {"text": "El proveedor de temporada entrega los primeros 5 días de cada mes", "category": "proveedores", "domain": "operaciones"},
+        {"text": "Horario: lunes a sábado 10am-8pm, domingos 11am-6pm", "category": "horarios", "domain": "operaciones"},
+        {"text": "Las prendas en exhibición no se venden, siempre buscar talla en bodega", "category": "procesos", "domain": "operaciones"}
+    ]
+}

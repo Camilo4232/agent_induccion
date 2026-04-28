@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -67,3 +68,15 @@ async def require_employee(current_user: dict = Depends(get_current_user)):
     if current_user.get("role") not in ("owner", "employee"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     return current_user
+
+
+def create_refresh_token_value() -> str:
+    return secrets.token_urlsafe(48)
+
+
+def hash_refresh_token(token: str) -> str:
+    return pwd_context.hash(token)
+
+
+def verify_refresh_token(token: str, hashed: str) -> bool:
+    return pwd_context.verify(token, hashed)

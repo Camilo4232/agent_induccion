@@ -14,6 +14,7 @@ const VoiceButton = forwardRef(function VoiceButton(
   const analyserRef = useRef(null)
   const animFrameRef = useRef(null)
   const streamRef = useRef(null)
+  const audioCtxRef = useRef(null)
 
   function updateState(s) {
     setState(s)
@@ -27,7 +28,10 @@ const VoiceButton = forwardRef(function VoiceButton(
 
   // Poll mic volume via AnalyserNode
   function startVolumePolling(stream) {
-    const ctx = new AudioContext()
+    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+      audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)()
+    }
+    const ctx = audioCtxRef.current
     const source = ctx.createMediaStreamSource(stream)
     const analyser = ctx.createAnalyser()
     analyser.fftSize = 256
@@ -38,7 +42,7 @@ const VoiceButton = forwardRef(function VoiceButton(
     function tick() {
       analyser.getByteFrequencyData(data)
       const avg = data.reduce((a, b) => a + b, 0) / data.length
-      setVolume(Math.min(avg / 80, 1)) // normalize to 0-1
+      setVolume(Math.min(avg / 80, 1))
       animFrameRef.current = requestAnimationFrame(tick)
     }
     tick()
@@ -56,7 +60,12 @@ const VoiceButton = forwardRef(function VoiceButton(
       streamRef.current = stream
       startVolumePolling(stream)
 
-      const mediaRecorder = new MediaRecorder(stream)
+      // Pick a supported audio MIME type
+      const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4']
+        .find(t => MediaRecorder.isTypeSupported(t)) || ''
+      const mediaRecorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream)
       chunksRef.current = []
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data)
@@ -71,10 +80,12 @@ const VoiceButton = forwardRef(function VoiceButton(
           return
         }
 
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+        const blobType = mediaRecorder.mimeType || 'audio/webm'
+        const ext = blobType.includes('mp4') ? 'mp4' : blobType.includes('ogg') ? 'ogg' : 'webm'
+        const blob = new Blob(chunksRef.current, { type: blobType })
         updateState('transcribing')
         try {
-          const { data } = await transcribeAPI.transcribe(blob)
+          const { data } = await transcribeAPI.transcribe(blob, `recording.${ext}`)
           if (!data.text) {
             showError('No se detectó voz.')
           } else {
@@ -106,6 +117,9 @@ const VoiceButton = forwardRef(function VoiceButton(
   useEffect(() => () => {
     stopVolumePolling()
     streamRef.current?.getTracks().forEach(t => t.stop())
+    if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+      audioCtxRef.current.close()
+    }
   }, [])
 
   // Scale: 1.0 at silence, up to 1.5 at full volume
@@ -123,6 +137,7 @@ const VoiceButton = forwardRef(function VoiceButton(
           onClick={startRecording}
           disabled={disabled}
           title="Dictar con voz"
+          aria-label="Grabar mensaje de voz"
           style={{
             width: 40, height: 40, borderRadius: '50%',
             border: '1.5px solid var(--border)',

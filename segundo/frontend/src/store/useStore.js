@@ -11,6 +11,7 @@ const useStore = create((set) => ({
 
   logout: () => {
     localStorage.removeItem('token')
+    localStorage.removeItem('refresh_token')
     set({ user: null, token: null })
   },
 }))

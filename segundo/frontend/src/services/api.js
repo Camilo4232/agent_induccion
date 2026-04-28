@@ -1,7 +1,9 @@
 import axios from 'axios'
 
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
+  baseURL: BASE_URL,
 })
 
 api.interceptors.request.use((config) => {
@@ -12,10 +14,29 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (res) => res,
-  (err) => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem('token')
-      window.location.href = '/login'
+  async (err) => {
+    if (err.response?.status === 401 && !err.config._retry) {
+      err.config._retry = true
+      const refreshToken = localStorage.getItem('refresh_token')
+      if (refreshToken) {
+        try {
+          const { data } = await axios.post(
+            BASE_URL + '/auth/refresh',
+            { refresh_token: refreshToken }
+          )
+          localStorage.setItem('token', data.access_token)
+          if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token)
+          err.config.headers.Authorization = `Bearer ${data.access_token}`
+          return api(err.config)
+        } catch {
+          localStorage.removeItem('token')
+          localStorage.removeItem('refresh_token')
+          window.location.href = '/login'
+        }
+      } else {
+        localStorage.removeItem('token')
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(err)
   }
@@ -27,18 +48,46 @@ export const authAPI = {
   demoLogin: (role) => api.post('/auth/demo', { role }),
   changePassword: (current_password, new_password) =>
     api.post('/auth/change-password', { current_password, new_password }),
+  forgotPassword: (data) => api.post('/auth/forgot-password', data),
+  resetPassword: (data) => api.post('/auth/reset-password', data),
+  logout: () => {
+    const refreshToken = localStorage.getItem('refresh_token')
+    if (refreshToken) {
+      api.post('/auth/logout', { refresh_token: refreshToken }).catch(() => {})
+    }
+    localStorage.removeItem('token')
+    localStorage.removeItem('refresh_token')
+  },
 }
 
 export const teachAPI = {
   teach: (text) => api.post('/teach', { text }),
-  listKnowledge: () => api.get('/knowledge'),
+  listKnowledge: (params = {}) => api.get('/knowledge', { params }),
   updateEntry: (id, data) => api.patch(`/knowledge/${id}`, data),
   deleteEntry: (id) => api.delete(`/knowledge/${id}`),
+  bulkUpload: (file) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post('/knowledge/bulk-upload', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+  bulkPreview: (file) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post('/knowledge/bulk-preview', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+  bulkConfirm: (facts) => api.post('/knowledge/bulk-confirm', { facts }),
+  bulkText: (text) => api.post('/knowledge/bulk-text', { text }),
+}
+
+export const templatesAPI = {
+  list: () => api.get('/knowledge/templates'),
+  load: (id) => api.post(`/knowledge/templates/${id}/load`),
 }
 
 export const askAPI = {
   ask: (question, session_id) => api.post('/ask', { question, session_id }),
   getHistory: (sessionId) => api.get(`/sessions/${sessionId}/history`),
+  listSessions: () => api.get('/sessions'),
 }
 
 export const unansweredAPI = {
@@ -60,19 +109,31 @@ export const proposalsAPI = {
   approve: (id) => api.post(`/proposals/${id}/approve`),
   reject: (id) => api.post(`/proposals/${id}/reject`),
   listConflicts: () => api.get('/knowledge/conflicts'),
-  resolveConflict: (id) => api.post(`/knowledge/conflicts/${id}/resolve`),
+  resolveConflict: (id, keepFactId) => api.post(`/knowledge/conflicts/${id}/resolve`, keepFactId ? { keep_fact_id: keepFactId } : {}),
 }
 
 export const briefingAPI = {
   generate: () => api.post('/briefing/generate'),
 }
 
+export const notificationsAPI = {
+  list: (unread) => api.get('/notifications', { params: unread ? { unread: true } : {} }),
+  count: () => api.get('/notifications/count'),
+  markRead: (id) => api.patch(`/notifications/${id}/read`),
+  markAllRead: () => api.post('/notifications/mark-all-read'),
+}
+
 export const transcribeAPI = {
-  transcribe: (audioBlob) => {
+  transcribe: (audioBlob, filename = 'recording.webm') => {
     const form = new FormData()
-    form.append('audio', audioBlob, 'recording.webm')
-    return api.post('/transcribe', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+    form.append('audio', audioBlob, filename)
+    return api.post('/transcribe', form)
   },
+}
+
+export const analyticsAPI = {
+  summary: () => api.get('/analytics/summary'),
+  knowledgeUsage: () => api.get('/analytics/knowledge-usage'),
 }
 
 export default api

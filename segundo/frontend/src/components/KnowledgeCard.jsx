@@ -44,13 +44,13 @@ export default function KnowledgeCard({ entry, onUpdate, onDelete }) {
               <textarea
                 value={fact}
                 onChange={(e) => setFact(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg p-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-gray-300 rounded-lg p-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
                 rows={2}
               />
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none"
+                className="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none bg-white text-gray-900"
               >
                 {Object.keys(CATEGORY_COLORS).map((c) => (
                   <option key={c} value={c}>{c}</option>

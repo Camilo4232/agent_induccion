@@ -4,13 +4,35 @@ Sub-agents reason with their own context and return answers.
 The orchestrator synthesizes if multiple agents responded.
 """
 import json
+import logging
+import time
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from uuid import UUID
 
-from app.db.models import ChatSession, ChatMessage, UnansweredQuestion, KnowledgeProposal
+from app.db.models import ChatSession, ChatMessage, UnansweredQuestion, KnowledgeProposal, KnowledgeEntry
 from app.agents.sub_agents import run_parallel_sub_agents
 from app.services.claude import complete, complete_with_tools
+from app.core.config import settings
+
+
+async def _create_escalation_notification(business_id: UUID, question: str, db: AsyncSession):
+    """Create notification for business owner when a question is escalated."""
+    from app.db.models import User, Notification
+    result = await db.execute(
+        select(User).where(User.business_id == business_id, User.role == "owner")
+    )
+    owner = result.scalar_one_or_none()
+    if owner:
+        notification = Notification(
+            user_id=owner.id,
+            type="escalation",
+            title="Pregunta escalada",
+            body=f"Un empleado preguntó: {question[:200]}",
+        )
+        db.add(notification)
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Tool definitions — orchestrator decides WHICH agents to call
@@ -121,9 +143,9 @@ async def _orchestrate(
     business_id: UUID,
     db: AsyncSession,
     role: str = "employee",
-) -> tuple[str, str, list[str], list[dict]]:
+) -> tuple[str, str, list[str], list[dict], list[str], list[str]]:
     """
-    Returns: (response_text, confidence, agents_used, flagged_knowledge)
+    Returns: (response_text, confidence, agents_used, flagged_knowledge, source_ids, source_facts)
     """
     system = ORCHESTRATOR_SYSTEM.format(business_name=business_name)
     messages = [{"role": "user", "content": question}]
@@ -133,6 +155,9 @@ async def _orchestrate(
     escalated = False
 
     # Step 1 — Orchestrator decides which agents to call
+    t_start = time.time()
+    logger.info("Orchestrating: question_len=%d, business=%s", len(question), business_id)
+
     response = complete_with_tools(
         system=system,
         messages=messages,
@@ -177,12 +202,18 @@ async def _orchestrate(
         domains_to_call = ["general"]
         agents_used.append("general")
 
+    logger.info("Routing decision: domains=%s, escalated=%s, flagged=%d",
+                 domains_to_call, escalated, len(flagged_knowledge))
+
     if escalated:
+        await _create_escalation_notification(business_id, question, db)
         return (
             "Esta situación requiere la atención del encargado. Le voy a avisar para que te contacte.",
             "escalated",
             agents_used,
             flagged_knowledge,
+            [],
+            [],
         )
 
     # Step 2 — Run specialist sub-agents
@@ -210,23 +241,38 @@ async def _orchestrate(
     # Step 3 — Synthesize
     if not sub_results:
         final_answer, confidence = _handle_no_context(question, business_name)
-        return final_answer, confidence, agents_used, flagged_knowledge
+        return final_answer, confidence, agents_used, flagged_knowledge, [], []
 
     found_results = [r for r in sub_results if r["found_context"]]
+
+    source_ids: list[str] = []
+    source_facts: list[str] = []
 
     if len(found_results) == 1:
         # Single agent answered — return directly without extra LLM call
         final_answer = found_results[0]["answer"]
         confidence = "high"
+        source_ids = found_results[0].get("source_ids", [])
+        source_facts = found_results[0].get("source_facts", [])
     elif len(found_results) > 1:
-        # Multiple agents answered — use the one with most content, avoid duplicates
-        final_answer = max(found_results, key=lambda r: len(r["answer"]))["answer"]
+        # Multiple agents answered — pick by avg similarity score, length as tiebreaker
+        best = max(found_results, key=lambda r: (r.get("avg_similarity", 0), len(r.get("answer", ""))))
+        final_answer = best["answer"]
         confidence = "high"
+        source_ids = best.get("source_ids", [])
+        source_facts = best.get("source_facts", [])
+        logger.info("Selected agent %s (similarity=%.3f) over %s",
+                    best.get("domain"), best.get("avg_similarity", 0),
+                    [r["domain"] for r in found_results if r != best])
     else:
         # No business knowledge found — check if it's casual conversation
         final_answer, confidence = _handle_no_context(question, business_name)
 
-    return final_answer, confidence, agents_used, flagged_knowledge
+    duration_ms = round((time.time() - t_start) * 1000, 2)
+    logger.info("Orchestration complete: confidence=%s, agents=%s, duration_ms=%s",
+                 confidence, agents_used, duration_ms)
+
+    return final_answer, confidence, agents_used, flagged_knowledge, source_ids, source_facts
 
 
 def _handle_no_context(question: str, business_name: str) -> tuple[str, str]:
@@ -284,12 +330,15 @@ async def _get_or_create_session(
 
 
 async def _get_chat_history(session_id: UUID, db: AsyncSession) -> list[dict]:
+    limit = settings.chat_history_limit
     result = await db.execute(
         select(ChatMessage)
         .where(ChatMessage.session_id == session_id)
-        .order_by(ChatMessage.created_at.asc())
+        .order_by(ChatMessage.created_at.desc())
+        .limit(limit)
     )
-    return [{"role": m.role, "content": m.content} for m in result.scalars().all()[-6:]]
+    messages = list(reversed(result.scalars().all()))
+    return [{"role": m.role, "content": m.content} for m in messages]
 
 
 # ---------------------------------------------------------------------------
@@ -314,7 +363,7 @@ async def handle_ask(
         history_text = "\n".join(f"{m['role']}: {m['content']}" for m in chat_history[-4:])
         question_with_context = f"Historial reciente:\n{history_text}\n\nPregunta actual: {question}"
 
-    response_text, confidence, agents_used, flagged_knowledge = await _orchestrate(
+    response_text, confidence, agents_used, flagged_knowledge, source_ids, source_facts = await _orchestrate(
         question=question_with_context,
         business_name=business_name,
         business_id=business_id,
@@ -323,7 +372,25 @@ async def handle_ask(
     )
 
     db.add(ChatMessage(session_id=session.id, role="user", content=question))
-    db.add(ChatMessage(session_id=session.id, role="assistant", content=response_text))
+    db.add(ChatMessage(
+        session_id=session.id, role="assistant", content=response_text,
+        knowledge_used=[UUID(sid) for sid in source_ids] if source_ids else None,
+    ))
+
+    # Track usage_count and last_used_at for knowledge entries used in this response
+    if source_ids:
+        from datetime import datetime
+        for sid in source_ids:
+            try:
+                entry_result = await db.execute(
+                    select(KnowledgeEntry).where(KnowledgeEntry.id == UUID(sid))
+                )
+                entry = entry_result.scalar_one_or_none()
+                if entry:
+                    entry.usage_count = (entry.usage_count or 0) + 1
+                    entry.last_used_at = datetime.utcnow()
+            except Exception:
+                pass
 
     if confidence in ("none", "escalated"):
         db.add(UnansweredQuestion(
@@ -344,9 +411,14 @@ async def handle_ask(
 
     await db.commit()
 
+    sources = [
+        {"id": sid, "fact": sfact, "category": None}
+        for sid, sfact in zip(source_ids, source_facts)
+    ]
+
     return {
         "response": response_text,
-        "sources": [],
+        "sources": sources,
         "confidence": confidence,
         "session_id": str(session.id),
         "tools_used": agents_used,

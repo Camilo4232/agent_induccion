@@ -1,16 +1,19 @@
+import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from uuid import UUID
 
-from app.services.embeddings import generate_embedding
+from app.services.embeddings import generate_embedding, generate_embedding_cached
 from app.core.config import settings
 
-SIMILARITY_THRESHOLD = 0.75
-TOP_K = 5
+logger = logging.getLogger(__name__)
+
+SIMILARITY_THRESHOLD = getattr(settings, "similarity_threshold", 0.75)
+TOP_K = getattr(settings, "search_top_k", 5)
 
 
 def _has_real_embeddings() -> bool:
-    return bool(getattr(settings, "voyage_api_key", None))
+    return bool(settings.voyage_api_key)
 
 
 async def _search_by_domain(
@@ -33,47 +36,55 @@ async def _vector_search(
     domain: str | None = None,
     role: str = "employee",
 ) -> list[dict]:
-    embedding = generate_embedding(question)
+    embedding = generate_embedding_cached(question)
     embedding_str = "[" + ",".join(str(x) for x in embedding) + "]"
+    # Cosine distance threshold: distance < (1 - similarity) means similarity > threshold
+    max_distance = 1.0 - SIMILARITY_THRESHOLD
     sensitivity_filter = "" if role == "owner" else "AND (sensitivity = 'public' OR sensitivity IS NULL)"
 
     if domain:
         sql = text(f"""
             SELECT id, processed_fact, category, domain,
-                   1 - (embedding_vec <=> '{embedding_str}'::vector) AS similarity
+                   1 - (embedding_vec <=> :embedding::vector) AS similarity
             FROM knowledge_entries
             WHERE business_id = :business_id
               AND is_active = true
               AND embedding_vec IS NOT NULL
               AND domain = :domain
+              AND (embedding_vec <=> :embedding::vector) < :max_distance
               {sensitivity_filter}
-            ORDER BY embedding_vec <=> '{embedding_str}'::vector
+            ORDER BY embedding_vec <=> :embedding::vector
             LIMIT :top_k
         """)
         result = await db.execute(sql, {
+            "embedding": embedding_str,
             "business_id": str(business_id),
             "domain": domain,
             "top_k": TOP_K,
+            "max_distance": max_distance,
         })
     else:
         sql = text(f"""
             SELECT id, processed_fact, category, domain,
-                   1 - (embedding_vec <=> '{embedding_str}'::vector) AS similarity
+                   1 - (embedding_vec <=> :embedding::vector) AS similarity
             FROM knowledge_entries
             WHERE business_id = :business_id
               AND is_active = true
               AND embedding_vec IS NOT NULL
+              AND (embedding_vec <=> :embedding::vector) < :max_distance
               {sensitivity_filter}
-            ORDER BY embedding_vec <=> '{embedding_str}'::vector
+            ORDER BY embedding_vec <=> :embedding::vector
             LIMIT :top_k
         """)
         result = await db.execute(sql, {
+            "embedding": embedding_str,
             "business_id": str(business_id),
             "top_k": TOP_K,
+            "max_distance": max_distance,
         })
 
     rows = result.fetchall()
-    return [
+    entries = [
         {
             "id": str(r.id),
             "processed_fact": r.processed_fact,
@@ -82,8 +93,9 @@ async def _vector_search(
             "similarity": float(r.similarity),
         }
         for r in rows
-        if float(r.similarity) >= SIMILARITY_THRESHOLD
     ]
+    logger.info("Vector search: domain=%s, results=%d, business=%s", domain, len(entries), business_id)
+    return entries
 
 
 async def _fetch_all(

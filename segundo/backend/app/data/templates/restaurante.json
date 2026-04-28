@@ -1,0 +1,14 @@
+{
+    "industry": "restaurante",
+    "name": "Restaurante",
+    "facts": [
+        {"text": "El horario de atención es de 8am a 10pm de lunes a sábado", "category": "horarios", "domain": "operaciones"},
+        {"text": "El descuento máximo sin autorización del gerente es 10%", "category": "precios", "domain": "ventas"},
+        {"text": "Los domicilios tienen un recargo de $5.000 para pedidos menores a $30.000", "category": "precios", "domain": "ventas"},
+        {"text": "El proveedor de verduras llega los lunes y jueves antes de las 7am", "category": "proveedores", "domain": "operaciones"},
+        {"text": "Si un cliente tiene alergia alimentaria, consultar con el chef antes de tomar el pedido", "category": "procesos", "domain": "clientes"},
+        {"text": "Los empleados tienen derecho a una comida por turno del menú del día", "category": "procesos", "domain": "operaciones"},
+        {"text": "El inventario de bebidas se revisa todos los miércoles", "category": "procesos", "domain": "operaciones"},
+        {"text": "Clientes frecuentes con más de 10 visitas al mes reciben 15% de descuento", "category": "precios", "domain": "clientes"}
+    ]
+}

@@ -47,17 +47,18 @@ async def check_consistency(
     embedding = generate_embedding(new_fact)
     embedding_str = "[" + ",".join(str(x) for x in embedding) + "]"
 
-    sql = text(f"""
+    sql = text("""
         SELECT id, processed_fact
         FROM knowledge_entries
         WHERE business_id = :business_id
           AND is_active = true
           AND embedding_vec IS NOT NULL
           AND id != :new_fact_id
-        ORDER BY embedding_vec <=> '{embedding_str}'::vector
-        LIMIT 3
+        ORDER BY embedding_vec <=> :embedding::vector
+        LIMIT 5
     """)
     result = await db.execute(sql, {
+        "embedding": embedding_str,
         "business_id": str(business_id),
         "new_fact_id": str(new_fact_id),
     })
@@ -82,6 +83,7 @@ async def check_consistency(
         lines = text_clean.split("\n")
         text_clean = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
 
+    data = None
     try:
         data = json.loads(text_clean)
     except json.JSONDecodeError:
@@ -90,11 +92,19 @@ async def check_consistency(
             try:
                 data = json.loads(match.group())
             except json.JSONDecodeError:
-                logger.warning("check_consistency: could not parse LLM JSON, assuming no contradiction")
-                return {"contradiction": False, "conflicting_fact_id": None, "explanation": None}
-        else:
-            logger.warning("check_consistency: no JSON found in LLM response, assuming no contradiction")
-            return {"contradiction": False, "conflicting_fact_id": None, "explanation": None}
+                pass
+
+    if data is None:
+        logger.error(
+            "check_consistency: could not parse LLM JSON — review manually",
+            extra={"raw_response": text_clean[:500], "new_fact": new_fact},
+        )
+        return {
+            "contradiction": False,
+            "conflicting_fact_id": None,
+            "explanation": None,
+            "parse_failed": True,
+        }
 
     if data.get("contradiction") and data.get("conflicting_fact_index") is not None:
         idx = data["conflicting_fact_index"]
@@ -105,6 +115,7 @@ async def check_consistency(
                 "conflicting_fact_id": conflicting_id,
                 "conflicting_fact_text": existing_facts[idx]["fact"],
                 "explanation": data.get("explanation"),
+                "parse_failed": False,
             }
 
-    return {"contradiction": False, "conflicting_fact_id": None, "explanation": None}
+    return {"contradiction": False, "conflicting_fact_id": None, "explanation": None, "parse_failed": False}
