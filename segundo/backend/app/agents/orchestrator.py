@@ -255,15 +255,39 @@ async def _orchestrate(
         source_ids = found_results[0].get("source_ids", [])
         source_facts = found_results[0].get("source_facts", [])
     elif len(found_results) > 1:
-        # Multiple agents answered — pick by avg similarity score, length as tiebreaker
-        best = max(found_results, key=lambda r: (r.get("avg_similarity", 0), len(r.get("answer", ""))))
-        final_answer = best["answer"]
+        # Multiple agents answered — synthesize a unified response that includes
+        # all relevant info instead of dropping the non-"best" agents.
+        synth_input_lines = []
+        for r in found_results:
+            synth_input_lines.append(
+                f"[{r.get('agent_name', r['domain'])}]\n{r['answer']}"
+            )
+        synth_input = "\n\n".join(synth_input_lines)
+
+        synth_system = SYNTHESIZER_SYSTEM.format(business_name=business_name)
+        synth_user = (
+            f"Pregunta del empleado: {question}\n\n"
+            f"Respuestas de los agentes especialistas:\n\n{synth_input}\n\n"
+            f"Sintetiza una sola respuesta clara para el empleado. "
+            f"Si los agentes mencionan ítems/variantes distintas pero relevantes a la pregunta, "
+            f"inclúyelas TODAS (no descartes ninguna). Sin frases de relleno."
+        )
+        final_answer = complete(
+            system=synth_system,
+            messages=[{"role": "user", "content": synth_user}],
+            max_tokens=600,
+        ).strip()
         confidence = "high"
-        source_ids = best.get("source_ids", [])
-        source_facts = best.get("source_facts", [])
-        logger.info("Selected agent %s (similarity=%.3f) over %s",
-                    best.get("domain"), best.get("avg_similarity", 0),
-                    [r["domain"] for r in found_results if r != best])
+        # Merge sources from all contributing agents, preserving order, dedup by id
+        seen_ids: set[str] = set()
+        for r in found_results:
+            for sid, sfact in zip(r.get("source_ids", []), r.get("source_facts", [])):
+                if sid not in seen_ids:
+                    seen_ids.add(sid)
+                    source_ids.append(sid)
+                    source_facts.append(sfact)
+        logger.info("Synthesized response from %d agents: %s",
+                    len(found_results), [r["domain"] for r in found_results])
     else:
         # No business knowledge found — check if it's casual conversation
         final_answer, confidence = _handle_no_context(question, business_name)

@@ -208,6 +208,23 @@ export default function EmployeeChat() {
           <LangSwitcher compact />
           <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{user?.email}</span>
           <button
+            onClick={handleNewConversation}
+            disabled={messages.length === 0 && !sessionId}
+            style={{
+              fontSize: 12,
+              color: 'var(--text-primary)',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: 999,
+              padding: '4px 12px',
+              cursor: messages.length === 0 && !sessionId ? 'default' : 'pointer',
+              opacity: messages.length === 0 && !sessionId ? 0.5 : 1,
+            }}
+            aria-label={t('chat.newConversation')}
+          >
+            {t('chat.newConversation')}
+          </button>
+          <button
             onClick={() => { setShowSessions(s => !s); if (!showSessions) loadSessions() }}
             style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}
           >

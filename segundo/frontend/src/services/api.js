@@ -92,7 +92,9 @@ export const askAPI = {
 
 export const unansweredAPI = {
   list: () => api.get('/unanswered'),
+  history: () => api.get('/unanswered/history'),
   resolve: (id, answer) => api.post(`/unanswered/${id}/resolve`, { answer }),
+  dismiss: (id) => api.delete(`/unanswered/${id}`),
 }
 
 export const inviteAPI = {

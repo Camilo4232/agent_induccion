@@ -190,7 +190,15 @@
       "factB": "Fato B",
       "keepA": "Manter A",
       "keepB": "Manter B",
-      "keepBoth": "Manter ambos"
+      "keepBoth": "Manter ambos",
+      "dismiss": "Descartar",
+      "dismissConfirm": "Descartar esta pergunta sem respondê-la? Ficará no registro.",
+      "activityLog": "Registro recente",
+      "activityToggle": "Ver registro",
+      "activityHide": "Ocultar registro",
+      "activityEmpty": "Você ainda não resolveu ou descartou nenhuma pergunta.",
+      "activityResolved": "Respondida",
+      "activityDismissed": "Descartada"
     },
     "analytics": {
       "title": "Métricas",

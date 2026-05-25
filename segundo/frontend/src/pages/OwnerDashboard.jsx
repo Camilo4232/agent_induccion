@@ -70,7 +70,10 @@ export default function OwnerDashboard() {
   const [inviteSubTab, setInviteSubTab] = useState('invite')
   const [removingId, setRemovingId] = useState(null)
   const [resolving, setResolving] = useState({})
+  const [dismissing, setDismissing] = useState({})
   const [actioning, setActioning] = useState({})
+  const [unansweredHistory, setUnansweredHistory] = useState([])
+  const [showHistory, setShowHistory] = useState(false)
   const [knowledgeSearch, setKnowledgeSearch] = useState('')
   const [knowledgeCategory, setKnowledgeCategory] = useState('')
   const [knowledgePage, setKnowledgePage] = useState(1)
@@ -187,10 +190,50 @@ export default function OwnerDashboard() {
     setResolving(r => ({ ...r, [id]: true }))
     try {
       await unansweredAPI.resolve(id, answer)
+      const removed = unanswered.find(q => q.id === id)
       setUnanswered(prev => prev.filter(q => q.id !== id))
+      if (removed) {
+        setUnansweredHistory(prev => [
+          { ...removed, resolved: true, _action: 'resolved' },
+          ...prev,
+        ])
+      }
     } finally {
       setResolving(r => ({ ...r, [id]: false }))
     }
+  }
+
+  async function handleDismiss(id) {
+    if (!confirm(t('owner.inbox.dismissConfirm'))) return
+    setDismissing(d => ({ ...d, [id]: true }))
+    try {
+      await unansweredAPI.dismiss(id)
+      const removed = unanswered.find(q => q.id === id)
+      setUnanswered(prev => prev.filter(q => q.id !== id))
+      if (removed) {
+        setUnansweredHistory(prev => [
+          { ...removed, resolved: true, _action: 'dismissed' },
+          ...prev,
+        ])
+      }
+    } catch (err) {
+      const status = err?.response?.status
+      const detail = err?.response?.data?.detail
+      alert(
+        status === 404
+          ? 'No se pudo descartar: el endpoint DELETE /unanswered/{id} no responde. ¿Reiniciaste el backend?'
+          : `Error al descartar (${status || 'red'})${detail ? ': ' + detail : ''}`
+      )
+    } finally {
+      setDismissing(d => ({ ...d, [id]: false }))
+    }
+  }
+
+  async function loadHistory() {
+    try {
+      const { data } = await unansweredAPI.history()
+      setUnansweredHistory(data.map(q => ({ ...q, _action: 'resolved' })))
+    } catch {}
   }
 
   async function handleProposalAction(id, action) {
@@ -250,8 +293,8 @@ export default function OwnerDashboard() {
   const badgeCounts = { inbox: inboxCount }
 
   const welcomeMsg = (() => {
-    if (analytics?.unanswered_pending > 0)
-      return t('owner.welcome.unanswered', { count: analytics.unanswered_pending })
+    if (unanswered.length > 0)
+      return t('owner.welcome.unanswered', { count: unanswered.length })
     if (proposals.length > 0)
       return t('owner.welcome.proposals', { count: proposals.length })
     if (conflicts.length > 0)
@@ -780,11 +823,98 @@ export default function OwnerDashboard() {
                             key={q.id}
                             variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
                           >
-                            <UnansweredItem question={q} onResolve={handleResolve} saving={resolving[q.id]} t={t} />
+                            <UnansweredItem question={q} onResolve={handleResolve} onDismiss={handleDismiss} saving={resolving[q.id]} dismissing={dismissing[q.id]} t={t} />
                           </motion.div>
                         ))}
                       </motion.div>
                     )}
+
+                    {/* Activity log toggle */}
+                    <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = !showHistory
+                          setShowHistory(next)
+                          if (next) loadHistory()
+                        }}
+                        style={{
+                          fontSize: 12,
+                          color: 'var(--text-secondary)',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: 0,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.08em',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {showHistory ? t('owner.inbox.activityHide') : t('owner.inbox.activityToggle')}
+                      </button>
+
+                      <AnimatePresence initial={false}>
+                        {showHistory && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.22 }}
+                            style={{ overflow: 'hidden', marginTop: 12 }}
+                          >
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 8 }}>
+                              {t('owner.inbox.activityLog')}
+                            </div>
+                            {unansweredHistory.length === 0 ? (
+                              <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                                {t('owner.inbox.activityEmpty')}
+                              </p>
+                            ) : (
+                              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {unansweredHistory.map(item => (
+                                  <li
+                                    key={item.id}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 10,
+                                      padding: '8px 12px',
+                                      background: 'var(--bg-card)',
+                                      border: '1px solid var(--border)',
+                                      borderRadius: 8,
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        fontSize: 10,
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.08em',
+                                        fontWeight: 600,
+                                        padding: '2px 8px',
+                                        borderRadius: 999,
+                                        background: item._action === 'dismissed' ? 'rgba(176,107,72,0.12)' : 'rgba(76,175,80,0.12)',
+                                        color: item._action === 'dismissed' ? '#b06b48' : '#4caf50',
+                                        flexShrink: 0,
+                                      }}
+                                    >
+                                      {item._action === 'dismissed' ? t('owner.inbox.activityDismissed') : t('owner.inbox.activityResolved')}
+                                    </span>
+                                    <span style={{ fontSize: 13, color: 'var(--text-secondary)', flex: 1, lineHeight: 1.4 }}>
+                                      "{item.question}"
+                                    </span>
+                                    {item.created_at && (
+                                      <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>
+                                        {new Date(item.created_at).toLocaleDateString()}
+                                      </span>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   </motion.div>
                 )}
 
@@ -1279,8 +1409,9 @@ function EmptyStateV2({ icon, title, body, ctaLabel, onCta }) {
   )
 }
 
-function UnansweredItem({ question, onResolve, saving, t }) {
+function UnansweredItem({ question, onResolve, onDismiss, saving, dismissing, t }) {
   const [answer, setAnswer] = useState('')
+  const busy = saving || dismissing
   return (
     <div className="card">
       <p style={{ fontSize: 14, color: 'var(--text-primary)', marginBottom: 12, lineHeight: 1.5 }}>
@@ -1289,7 +1420,7 @@ function UnansweredItem({ question, onResolve, saving, t }) {
         </span>
         "{question.question}"
       </p>
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <input
           className="field-input"
           type="text"
@@ -1301,10 +1432,36 @@ function UnansweredItem({ question, onResolve, saving, t }) {
         <button
           className="btn-primary"
           onClick={() => onResolve(question.id, answer)}
-          disabled={saving || !answer.trim()}
+          disabled={busy || !answer.trim()}
           style={{ width: 'auto', padding: '10px 18px', whiteSpace: 'nowrap' }}
         >
           {saving ? '...' : t('common.save')}
+        </button>
+        <button
+          type="button"
+          onClick={() => onDismiss(question.id)}
+          disabled={busy}
+          aria-label={t('owner.inbox.dismiss')}
+          title={t('owner.inbox.dismiss')}
+          style={{
+            width: 36, height: 36, flexShrink: 0,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            background: 'transparent',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            color: 'var(--text-muted)',
+            cursor: busy ? 'default' : 'pointer',
+            opacity: busy ? 0.5 : 1,
+          }}
+        >
+          {dismissing ? '...' : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              <path d="M10 11v6" />
+              <path d="M14 11v6" />
+            </svg>
+          )}
         </button>
       </div>
     </div>

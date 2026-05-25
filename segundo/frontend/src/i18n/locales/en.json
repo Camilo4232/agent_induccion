@@ -190,7 +190,15 @@
       "factB": "Fact B",
       "keepA": "Keep A",
       "keepB": "Keep B",
-      "keepBoth": "Keep both"
+      "keepBoth": "Keep both",
+      "dismiss": "Dismiss",
+      "dismissConfirm": "Dismiss this question without answering it? It will stay in the log.",
+      "activityLog": "Recent activity",
+      "activityToggle": "View log",
+      "activityHide": "Hide log",
+      "activityEmpty": "You haven't resolved or dismissed any questions yet.",
+      "activityResolved": "Answered",
+      "activityDismissed": "Dismissed"
     },
     "analytics": {
       "title": "Metrics",

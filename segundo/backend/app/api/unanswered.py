@@ -29,6 +29,25 @@ async def list_unanswered(
     return result.scalars().all()
 
 
+@router.get("/history", response_model=list[UnansweredOut])
+async def list_history(
+    current_user: dict = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    """List the most recent resolved/dismissed questions as an activity log."""
+    business_id = UUID(current_user["business_id"])
+    result = await db.execute(
+        select(UnansweredQuestion)
+        .where(
+            UnansweredQuestion.business_id == business_id,
+            UnansweredQuestion.resolved == True,
+        )
+        .order_by(UnansweredQuestion.created_at.desc())
+        .limit(30)
+    )
+    return result.scalars().all()
+
+
 @router.post("/{unanswered_id}/resolve", response_model=TeachResponse)
 async def resolve_question(
     unanswered_id: str,
@@ -72,3 +91,29 @@ async def resolve_question(
         needs_clarification=False,
         entry_id=str(entry.id),
     )
+
+
+@router.delete("/{unanswered_id}", status_code=204)
+async def dismiss_question(
+    unanswered_id: str,
+    current_user: dict = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    """Discard an unanswered question without saving it as knowledge.
+    Marks the row as resolved=true so it disappears from the inbox and the count
+    drops, but the record is preserved for the activity log.
+    """
+    business_id = UUID(current_user["business_id"])
+    result = await db.execute(
+        select(UnansweredQuestion).where(
+            UnansweredQuestion.id == UUID(unanswered_id),
+            UnansweredQuestion.business_id == business_id,
+        )
+    )
+    uq = result.scalar_one_or_none()
+    if not uq:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    uq.resolved = True
+    await db.commit()
+    return None
