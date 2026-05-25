@@ -51,3 +51,7 @@ logs/
 .pytest_cache/
 htmlcov/
 .coverage
+
+# Pitch deck (local only)
+segundo/PITCH.html
+segundo/PITCH.pdf
