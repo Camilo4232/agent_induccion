@@ -1,0 +1,21 @@
+text,category,domain
+"El horario de atencion es de lunes a sabado de 6:00am a 8:00pm. Los domingos abrimos de 7:00am a 1:00pm.",horarios,operaciones
+"La apertura del local la hace el primer empleado del turno: enciende los hornos, revisa el gas y prende las luces antes de abrir la puerta.",procesos,operaciones
+"Antes de prender los hornos, siempre revisa que la valvula de gas no tenga fugas (huele cerca de la conexion). Si hay olor a gas, no enciendas nada y llama al jefe.",seguridad,operaciones
+"El pan del dia anterior se vende con 50% de descuento despues de las 6:00pm. Si sobra al cierre, se dona al comedor comunitario de la cuadra.",ventas,comercial
+"Los precios son: pan frances $800, croissant $2500, pan de queso $1800, pandebono $1500, torta de chocolate por porcion $4500.",precios,comercial
+"El maximo descuento que puede aplicar un empleado sin autorizacion del jefe es del 10%. Para descuentos mayores debe llamarme al 310-555-1234.",ventas,comercial
+"El proveedor de harina llega los martes y jueves entre 6:00am y 8:00am. Se recibe siempre revisando peso y fecha de vencimiento antes de firmar.",proveedores,operaciones
+"El proveedor de leche y huevos llega los lunes, miercoles y viernes a las 5:30am. Si no llega antes de las 7am, llamar a Carlos al 320-555-9876.",proveedores,operaciones
+"Para registrar un pedido grande (mas de 20 unidades de un producto) se usa el cuaderno azul detras de la caja: fecha, cliente, telefono, productos y fecha de entrega.",procesos,operaciones
+"Los clientes corporativos (oficinas que pedimos por semana) tienen 10% de descuento automatico y pagan a 15 dias. La lista esta en el cuaderno rojo.",clientes,comercial
+"Si un cliente reclama por un producto vencido o en mal estado: pedir disculpas, devolver el dinero o reponer el producto, y avisarme inmediatamente.",servicio,comercial
+"La caja se cuadra dos veces al dia: al cambio de turno (2pm) y al cierre (8pm). Las diferencias mayores a $5000 se anotan y me las reportas.",procesos,finanzas
+"Los empleados deben usar siempre el delantal limpio, gorra y guantes al manipular pan. El delantal se lava cada dia.",seguridad,operaciones
+"Esta prohibido fiar a clientes nuevos. Solo se fia a los 5 clientes de la lista del cuaderno verde, y maximo $50.000 por persona.",ventas,comercial
+"El aseo profundo del local (hornos, vitrinas, pisos detras del mostrador) se hace los domingos al cierre. Se rota entre los empleados cada semana.",procesos,operaciones
+"Si llega una inspeccion sanitaria o de Bomberos, atender amablemente, mostrar los papeles que estan en la carpeta amarilla bajo la caja, y llamarme inmediatamente.",seguridad,operaciones
+"El telefono del local (601-555-2233) solo se contesta para tomar pedidos. Las quejas o cosas raras se transfieren al jefe.",servicio,operaciones
+"Las propinas se reparten en partes iguales entre los empleados del turno al cierre. No se mezclan con la caja.",personal,operaciones
+"Los uniformes nuevos se piden cada 6 meses. Si se rompe o mancha permanentemente uno, avisame antes de pedir reposicion.",personal,operaciones
+"El pago a empleados es quincenal, los dias 15 y 30 (o el dia habil anterior si cae en domingo o festivo). Por transferencia a la cuenta que cada uno me dio.",personal,finanzas

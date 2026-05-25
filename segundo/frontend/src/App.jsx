@@ -5,6 +5,7 @@ import Register from './pages/Register'
 import OwnerDashboard from './pages/OwnerDashboard'
 import EmployeeChat from './pages/EmployeeChat'
 import ChangePassword from './pages/ChangePassword'
+import Pricing from './pages/Pricing'
 
 function PrivateRoute({ children, role }) {
   const { token, user } = useStore()
@@ -21,6 +22,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/pricing" element={<Pricing />} />
         <Route
           path="/dashboard"
           element={

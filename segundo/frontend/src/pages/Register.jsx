@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { useTranslation, Trans } from 'react-i18next'
 import { authAPI } from '../services/api'
 import useStore from '../store/useStore'
+import LangSwitcher from '../components/LangSwitcher'
 
 export default function Register() {
+  const { t } = useTranslation()
   const [form, setForm] = useState({ business_name: '', name: '', email: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -30,7 +33,7 @@ export default function Register() {
       if (Array.isArray(detail)) {
         setError(detail.map((e) => e.msg).join(', '))
       } else {
-        setError(detail || 'Error al registrar')
+        setError(detail || t('auth.register.errorGeneric'))
       }
     } finally {
       setLoading(false)
@@ -61,12 +64,12 @@ export default function Register() {
             marginBottom: '1rem',
             maxWidth: 320,
           }}>
-            Tu negocio aprende<br />
-            <em style={{ color: 'var(--accent)', fontStyle: 'italic' }}>contigo.</em>
+            {t('auth.register.headline1')}<br />
+            <em style={{ color: 'var(--accent)', fontStyle: 'italic' }}>{t('auth.register.headline2')}</em>
           </h2>
 
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px', lineHeight: 1.6, maxWidth: 300, marginBottom: '2.5rem' }}>
-            En 30 minutos entrenas al agente. Al día siguiente tu empleado nuevo trabaja solo.
+            {t('auth.register.subtitle')}
           </p>
 
           <div style={{
@@ -78,32 +81,36 @@ export default function Register() {
           }}>
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
               <strong style={{ color: 'var(--accent)', display: 'block', marginBottom: 6 }}>
-                ¿Cómo funciona el registro?
+                {t('auth.register.infoTitle')}
               </strong>
-              Creas tu cuenta de dueño. Luego entrenas al agente con el conocimiento de tu negocio.
-              Después invitas a tu equipo para que puedan consultarlo.
+              {t('auth.register.infoBody')}
             </p>
           </div>
         </div>
 
         <p style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
-          © 2026 Segundo · Para negocios reales en Latinoamérica
+          {t('auth.footer')}
         </p>
       </div>
 
       {/* ── Right panel ── */}
       <div className="auth-right">
         <div className="auth-form-box fade-in">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+            <LangSwitcher compact />
+          </div>
           <div style={{ marginBottom: '2rem' }}>
             <p style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '6px' }}>
-              Nuevo negocio
+              {t('auth.register.eyebrow')}
             </p>
             <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.8rem', color: 'var(--text-primary)' }}>
-              Registra tu negocio
+              {t('auth.register.title')}
             </h1>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
-              Estás creando una cuenta de <strong style={{ color: 'var(--accent)' }}>dueño</strong>.
-              Después podrás invitar a tus empleados desde el panel.
+              <Trans
+                i18nKey="auth.register.ownerNote"
+                components={[<strong style={{ color: 'var(--accent)' }} />]}
+              />
             </p>
           </div>
 
@@ -111,48 +118,48 @@ export default function Register() {
 
           <form onSubmit={handleSubmit}>
             <div className="field-group">
-              <label className="field-label">Nombre del negocio</label>
+              <label className="field-label">{t('auth.register.businessNameLabel')}</label>
               <input
                 className="field-input"
                 type="text"
                 value={form.business_name}
                 onChange={update('business_name')}
-                placeholder="Ferretería El Tornillo"
+                placeholder={t('auth.register.businessNamePlaceholder')}
                 required
                 autoFocus
               />
             </div>
             <div className="field-group">
-              <label className="field-label">Tu nombre</label>
+              <label className="field-label">{t('auth.register.yourNameLabel')}</label>
               <input
                 className="field-input"
                 type="text"
                 value={form.name}
                 onChange={update('name')}
-                placeholder="Carlos López"
+                placeholder={t('auth.register.yourNamePlaceholder')}
                 required
               />
             </div>
             <div className="field-group">
-              <label className="field-label">Email</label>
+              <label className="field-label">{t('auth.register.emailLabel')}</label>
               <input
                 className="field-input"
                 type="email"
                 value={form.email}
                 onChange={update('email')}
-                placeholder="carlos@negocio.com"
+                placeholder={t('auth.register.emailPlaceholder')}
                 required
               />
             </div>
             <div className="field-group">
-              <label className="field-label">Contraseña</label>
+              <label className="field-label">{t('auth.passwordLabel')}</label>
               <div style={{ position: 'relative' }}>
                 <input
                   className="field-input"
                   type={showPassword ? 'text' : 'password'}
                   value={form.password}
                   onChange={update('password')}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder={t('auth.register.passwordPlaceholder')}
                   required
                   minLength={6}
                   style={{ paddingRight: '2.5rem' }}
@@ -166,7 +173,7 @@ export default function Register() {
                     color: 'var(--text-muted)', padding: 0, lineHeight: 1,
                   }}
                   tabIndex={-1}
-                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                 >
                   {showPassword ? (
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -186,7 +193,7 @@ export default function Register() {
 
             <div style={{ marginTop: '1.5rem' }}>
               <button className="btn-primary" type="submit" disabled={loading}>
-                {loading ? 'Creando negocio...' : 'Crear negocio →'}
+                {loading ? t('auth.register.submitLoading') : t('auth.register.submit')}
               </button>
             </div>
           </form>
@@ -194,12 +201,12 @@ export default function Register() {
           <div className="divider" />
 
           <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-secondary)' }}>
-            ¿Ya tienes cuenta?{' '}
+            {t('auth.register.haveAccount')}{' '}
             <Link
               to="/login"
               style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 }}
             >
-              Ingresar
+              {t('auth.register.loginCta')}
             </Link>
           </p>
         </div>

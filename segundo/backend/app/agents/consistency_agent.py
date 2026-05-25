@@ -45,20 +45,19 @@ async def check_consistency(
     Returns dict with keys: contradiction (bool), conflicting_fact_id (UUID|None), explanation (str|None)
     """
     embedding = generate_embedding(new_fact)
-    embedding_str = "[" + ",".join(str(x) for x in embedding) + "]"
+    embedding_str = "[" + ",".join(str(float(x)) for x in embedding) + "]"
 
-    sql = text("""
+    sql = text(f"""
         SELECT id, processed_fact
         FROM knowledge_entries
         WHERE business_id = :business_id
           AND is_active = true
           AND embedding_vec IS NOT NULL
           AND id != :new_fact_id
-        ORDER BY embedding_vec <=> :embedding::vector
+        ORDER BY embedding_vec <=> '{embedding_str}'::vector
         LIMIT 5
     """)
     result = await db.execute(sql, {
-        "embedding": embedding_str,
         "business_id": str(business_id),
         "new_fact_id": str(new_fact_id),
     })

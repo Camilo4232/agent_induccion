@@ -1,22 +1,18 @@
-import { useState } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useTranslation, Trans } from 'react-i18next'
 import { authAPI } from '../services/api'
 import useStore from '../store/useStore'
+import GlassInput from '../components/GlassInput'
+import MagneticButton from '../components/MagneticButton'
+import LangSwitcher from '../components/LangSwitcher'
 
-const DEMO_ACCOUNTS = [
-  { role: 'owner',    label: 'Entrar como Dueño',    hint: 'Enseña, gestiona, invita empleados',  route: '/dashboard' },
-  { role: 'employee', label: 'Entrar como Empleado',  hint: 'Consulta el manual del negocio',       route: '/chat' },
-]
-
-const FACTS = [
-  { icon: '⏱', text: 'Ahorras 3–5 días de capacitación por cada empleado nuevo.' },
-  { icon: '🧠', text: 'El conocimiento de tu negocio deja de vivir solo en tu cabeza.' },
-  { icon: '📡', text: 'Tu equipo encuentra respuestas sin interrumpirte.' },
-  { icon: '🔄', text: 'El manual se actualiza solo con cada conversación.' },
-]
+const MobiusBackground = lazy(() => import('../components/MobiusBackground'))
 
 export default function Login() {
-  const [identifier, setIdentifier] = useState('')  // email o teléfono
+  const { t } = useTranslation()
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -28,8 +24,22 @@ export default function Login() {
   const [resetCode, setResetCode] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [resetMessage, setResetMessage] = useState('')
+  const [activeFact, setActiveFact] = useState(0)
   const { setAuth } = useStore()
   const navigate = useNavigate()
+
+  const FACT_ICONS = ['⏱', '🧠', '📡', '🔄']
+  const facts = FACT_ICONS.map((icon, i) => ({ icon, text: t(`auth.facts.${i}`) }))
+
+  const DEMO_ACCOUNTS = [
+    { role: 'owner',    label: t('auth.demoOwner'),    hint: t('auth.demoOwnerHint'),    route: '/dashboard' },
+    { role: 'employee', label: t('auth.demoEmployee'), hint: t('auth.demoEmployeeHint'), route: '/chat' },
+  ]
+
+  useEffect(() => {
+    const id = setInterval(() => setActiveFact((i) => (i + 1) % facts.length), 3000)
+    return () => clearInterval(id)
+  }, [facts.length])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -52,7 +62,7 @@ export default function Login() {
         navigate(data.role === 'owner' ? '/dashboard' : '/chat')
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'Credenciales incorrectas')
+      setError(err.response?.data?.detail || t('auth.loginErrors.invalidCredentials'))
     } finally {
       setLoading(false)
     }
@@ -71,7 +81,7 @@ export default function Login() {
       if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token)
       navigate(route)
     } catch (err) {
-      setError('No se pudo iniciar el modo demo. Intenta de nuevo.')
+      setError(t('auth.loginErrors.demoFailed'))
     } finally {
       setDemoLoading(null)
     }
@@ -88,10 +98,10 @@ export default function Login() {
         ? { phone: resetEmail.replace(/\s/g, '') }
         : { email: resetEmail }
       await authAPI.forgotPassword(payload)
-      setResetMessage('Código enviado. Revisa tu email o mensajes.')
+      setResetMessage(t('auth.loginErrors.codeSent'))
       setResetStep('verify')
     } catch (err) {
-      setError(err.response?.data?.detail || 'No se pudo enviar el código. Verifica tus datos.')
+      setError(err.response?.data?.detail || t('auth.loginErrors.sendCodeFailed'))
     } finally {
       setLoading(false)
     }
@@ -110,7 +120,7 @@ export default function Login() {
         new_password: newPassword,
       }
       await authAPI.resetPassword(payload)
-      setResetMessage('Contraseña actualizada correctamente.')
+      setResetMessage(t('auth.loginErrors.passwordUpdated'))
       setResetCode('')
       setNewPassword('')
       setTimeout(() => {
@@ -119,286 +129,341 @@ export default function Login() {
         setResetMessage('')
       }, 2000)
     } catch (err) {
-      setError(err.response?.data?.detail || 'No se pudo cambiar la contraseña. Verifica el código.')
+      setError(err.response?.data?.detail || t('auth.loginErrors.resetFailed'))
     } finally {
       setLoading(false)
     }
   }
 
+  const eyeIcon = (
+    <button
+      type="button"
+      onClick={() => setShowPassword((v) => !v)}
+      style={{
+        position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+        background: 'none', border: 'none', cursor: 'pointer',
+        color: 'var(--text-muted)', padding: 0, lineHeight: 1, zIndex: 3,
+      }}
+      tabIndex={-1}
+      aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
+    >
+      {showPassword ? (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+          <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+          <line x1="1" y1="1" x2="23" y2="23"/>
+        </svg>
+      ) : (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+      )}
+    </button>
+  )
+
   return (
     <div className="auth-shell">
       {/* ── Left panel ── */}
-      <div className="auth-left">
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '3rem' }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 8,
-              background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 16, fontWeight: 700, color: '#0e0e0e', fontFamily: 'var(--font-serif)',
-            }}>S</div>
-            <span style={{ fontFamily: 'var(--font-serif)', fontSize: '1.2rem', color: 'var(--text-primary)' }}>
-              Segundo
-            </span>
+      <div className="auth-left auth-left--stage">
+        <Suspense fallback={null}>
+          <MobiusBackground />
+        </Suspense>
+
+        <div className="auth-left-content">
+          <div>
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '3rem' }}
+            >
+              <div style={{
+                width: 36, height: 36, borderRadius: 8,
+                background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 16, fontWeight: 700, color: '#0e0e0e', fontFamily: 'var(--font-serif)',
+                boxShadow: '0 8px 24px rgba(212, 168, 83, 0.35)',
+              }}>S</div>
+              <span style={{ fontFamily: 'var(--font-serif)', fontSize: '1.2rem', color: 'var(--text-primary)' }}>
+                Segundo
+              </span>
+            </motion.div>
+
+            <motion.h2
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.15 }}
+              style={{
+                fontFamily: 'var(--font-serif)',
+                fontSize: '2.6rem',
+                lineHeight: 1.1,
+                color: 'var(--text-primary)',
+                marginBottom: '1rem',
+                maxWidth: 360,
+              }}
+            >
+              {t('auth.headlineLogin1')}<br />
+              <em className="accent-underline" style={{ color: 'var(--accent)', fontStyle: 'italic' }}>
+                {t('auth.headlineLogin2')}
+              </em>
+            </motion.h2>
+
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.7, delay: 0.5 }}
+              style={{ color: 'var(--text-secondary)', fontSize: '14px', lineHeight: 1.6, maxWidth: 320 }}
+            >
+              {t('auth.tagline')}
+            </motion.p>
           </div>
 
-          <h2 style={{
-            fontFamily: 'var(--font-serif)',
-            fontSize: '2.4rem',
-            lineHeight: 1.15,
-            color: 'var(--text-primary)',
-            marginBottom: '1rem',
-            maxWidth: 320,
-          }}>
-            El colega que<br />
-            <em style={{ color: 'var(--accent)', fontStyle: 'italic' }}>nunca renuncia.</em>
-          </h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {facts.map((f, i) => (
+              <motion.div
+                key={i}
+                className={`fact-card ${i === activeFact ? 'is-active' : ''}`}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.6 + i * 0.1 }}
+              >
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{f.icon}</span>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: 1.5 }}>
+                    {f.text}
+                  </p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
 
-          <p style={{ color: 'var(--text-secondary)', fontSize: '14px', lineHeight: 1.6, maxWidth: 300 }}>
-            El sistema de onboarding para negocios de 3 a 15 empleados que convierte tu experiencia en un activo permanente.
-          </p>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 1.2 }}
+            style={{ color: 'var(--text-muted)', fontSize: '11px' }}
+          >
+            {t('auth.footer')}
+          </motion.p>
         </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {FACTS.map((f, i) => (
-            <div
-              key={i}
-              className="testimonial-card"
-              style={{ animationDelay: `${i * 0.1}s` }}
-            >
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{f.icon}</span>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: 1.5 }}>
-                  {f.text}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <p style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
-          © 2026 Segundo · Para negocios reales en Latinoamérica
-        </p>
       </div>
 
       {/* ── Right panel ── */}
-      <div className="auth-right">
-        <div className="auth-form-box fade-in">
+      <div className="auth-right auth-right--glass">
+        <motion.div
+          className="auth-form-glass"
+          initial={{ opacity: 0, y: 20, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+            <LangSwitcher compact />
+          </div>
+
           <div style={{ marginBottom: '2rem' }}>
-            <p style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '6px' }}>
-              Acceso al sistema
+            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>
+              {t('auth.loginEyebrow')}
             </p>
-            <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.8rem', color: 'var(--text-primary)' }}>
-              Bienvenido de vuelta
+            <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.9rem', color: 'var(--text-primary)' }}>
+              {t('auth.loginTitle')}
             </h1>
           </div>
 
           {/* Demo access */}
-          <div style={{
-            background: 'rgba(212,168,83,0.05)', border: '1px solid rgba(212,168,83,0.18)',
-            borderRadius: 10, padding: '1rem', marginBottom: '1.5rem',
-          }}>
+          <div className="demo-card">
             <p style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
-              ✦ Acceso de demostración
+              ✦ {t('auth.demoTitle')}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {DEMO_ACCOUNTS.map(acc => (
-                <button
+              {DEMO_ACCOUNTS.map((acc) => (
+                <motion.button
                   key={acc.role}
                   type="button"
                   onClick={() => handleDemo(acc.role, acc.route)}
                   disabled={!!demoLoading}
+                  className="demo-btn"
+                  whileTap={{ scale: 0.98 }}
                   style={{
-                    background: 'var(--bg-input)', border: '1px solid var(--border)',
-                    borderRadius: 8, padding: '10px 14px',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    cursor: 'pointer', transition: 'border-color 0.15s',
                     opacity: demoLoading && demoLoading !== acc.role ? 0.5 : 1,
                   }}
-                  onMouseOver={e => e.currentTarget.style.borderColor = 'var(--border-focus)'}
-                  onMouseOut={e => e.currentTarget.style.borderColor = 'var(--border)'}
                 >
                   <div style={{ textAlign: 'left' }}>
                     <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-sans)', marginBottom: 2 }}>
-                      {demoLoading === acc.role ? 'Ingresando...' : acc.label}
+                      {demoLoading === acc.role ? t('auth.demoLoading') : acc.label}
                     </p>
                     <p style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-sans)' }}>{acc.hint}</p>
                   </div>
-                  <span style={{ color: 'var(--accent)', fontSize: 16 }}>→</span>
-                </button>
+                  <span className="demo-btn-arrow">→</span>
+                </motion.button>
               ))}
             </div>
           </div>
 
-          {error && <div className="alert-error">{error}</div>}
-          {resetMessage && <div className="alert-success">{resetMessage}</div>}
+          <AnimatePresence mode="wait">
+            {error && (
+              <motion.div
+                key="err"
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="alert-error"
+              >
+                {error}
+              </motion.div>
+            )}
+            {resetMessage && (
+              <motion.div
+                key="ok"
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="alert-success"
+              >
+                {resetMessage}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          {!forgotMode ? (
-            <>
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginBottom: '1rem' }}>
-                — o ingresa con tu cuenta —
-              </p>
+          <AnimatePresence mode="wait">
+            {!forgotMode ? (
+              <motion.div
+                key="login"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.22 }}
+              >
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginBottom: '1.2rem' }}>
+                  {t('auth.orWithAccount')}
+                </p>
 
-              <form onSubmit={handleSubmit}>
-                <div className="field-group">
-                  <label className="field-label">Email o teléfono</label>
-                  <input
-                    className="field-input"
+                <form onSubmit={handleSubmit}>
+                  <GlassInput
+                    label={t('auth.identifierLabel')}
                     type="text"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="tu@negocio.com o +52 55 1234 5678"
+                    placeholder={t('auth.identifierPlaceholder')}
                     required
-                    autoFocus
                   />
-                </div>
-                <div className="field-group">
-                  <label className="field-label">Contraseña</label>
                   <div style={{ position: 'relative' }}>
-                    <input
-                      className="field-input"
+                    <GlassInput
+                      label={t('auth.passwordLabel')}
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
+                      placeholder={t('auth.passwordPlaceholder')}
                       required
-                      style={{ paddingRight: '2.5rem' }}
+                      suffix={eyeIcon}
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(v => !v)}
-                      style={{
-                        position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        color: 'var(--text-muted)', padding: 0, lineHeight: 1,
-                      }}
-                      tabIndex={-1}
-                      aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                    >
-                      {showPassword ? (
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                          <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                          <line x1="1" y1="1" x2="23" y2="23"/>
-                        </svg>
-                      ) : (
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                          <circle cx="12" cy="12" r="3"/>
-                        </svg>
-                      )}
-                    </button>
                   </div>
-                </div>
 
-                <div style={{ marginTop: '1.5rem' }}>
-                  <button className="btn-primary" type="submit" disabled={loading}>
-                    {loading ? 'Verificando...' : 'Ingresar →'}
-                  </button>
-                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>
-                    El sistema detecta automáticamente si eres dueño o empleado.
-                  </p>
-                </div>
-              </form>
+                  <div style={{ marginTop: '1.5rem' }}>
+                    <MagneticButton type="submit" loading={loading}>
+                      <span>{loading ? '' : t('auth.submit')}</span>
+                      {!loading && <span style={{ fontSize: 18 }}>→</span>}
+                    </MagneticButton>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 10, textAlign: 'center' }}>
+                      {t('auth.autoDetectRole')}
+                    </p>
+                  </div>
+                </form>
 
-              <button
-                type="button"
-                onClick={() => { setForgotMode(true); setError(''); setResetMessage('') }}
-                style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  color: 'var(--text-muted)', fontSize: 12, marginTop: 12,
-                  display: 'block', textAlign: 'center', width: '100%',
-                  textDecoration: 'underline', textUnderlineOffset: '3px',
-                }}
+                <button
+                  type="button"
+                  onClick={() => { setForgotMode(true); setError(''); setResetMessage('') }}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: 'var(--text-muted)', fontSize: 12, marginTop: 14,
+                    display: 'block', textAlign: 'center', width: '100%',
+                    textDecoration: 'underline', textUnderlineOffset: '3px',
+                  }}
+                >
+                  {t('auth.forgotPassword')}
+                </button>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="forgot"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.22 }}
               >
-                ¿Olvidaste tu contraseña?
-              </button>
-            </>
-          ) : (
-            <>
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginBottom: '1rem' }}>
-                — recuperar contraseña —
-              </p>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginBottom: '1rem' }}>
+                  {t('auth.forgotEyebrow')}
+                </p>
 
-              {resetStep === 'request' ? (
-                <form onSubmit={handleForgotSubmit}>
-                  <div className="field-group">
-                    <label className="field-label">Email o teléfono</label>
-                    <input
-                      className="field-input"
+                {resetStep === 'request' ? (
+                  <form onSubmit={handleForgotSubmit}>
+                    <GlassInput
+                      label={t('auth.identifierLabel')}
                       type="text"
                       value={resetEmail}
                       onChange={(e) => setResetEmail(e.target.value)}
-                      placeholder="tu@negocio.com o +52 55 1234 5678"
+                      placeholder={t('auth.identifierPlaceholder')}
                       required
-                      autoFocus
                     />
-                  </div>
-                  <div style={{ marginTop: '1.5rem' }}>
-                    <button className="btn-primary" type="submit" disabled={loading}>
-                      {loading ? 'Enviando...' : 'Enviar código'}
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <form onSubmit={handleResetSubmit}>
-                  <div className="field-group">
-                    <label className="field-label">Código de verificación</label>
-                    <input
-                      className="field-input"
+                    <div style={{ marginTop: '1.5rem' }}>
+                      <MagneticButton type="submit" loading={loading}>
+                        {loading ? '' : t('auth.sendCode')}
+                      </MagneticButton>
+                    </div>
+                  </form>
+                ) : (
+                  <form onSubmit={handleResetSubmit}>
+                    <GlassInput
+                      label={t('auth.verifyCodeLabel')}
                       type="text"
                       value={resetCode}
                       onChange={(e) => setResetCode(e.target.value)}
-                      placeholder="123456"
+                      placeholder={t('auth.verifyCodePlaceholder')}
                       maxLength={6}
                       required
-                      autoFocus
                     />
-                  </div>
-                  <div className="field-group">
-                    <label className="field-label">Nueva contraseña</label>
-                    <input
-                      className="field-input"
+                    <GlassInput
+                      label={t('auth.newPasswordLabel')}
                       type="password"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="••••••••"
+                      placeholder={t('auth.passwordPlaceholder')}
                       required
                     />
-                  </div>
-                  <div style={{ marginTop: '1.5rem' }}>
-                    <button className="btn-primary" type="submit" disabled={loading}>
-                      {loading ? 'Cambiando...' : 'Cambiar contraseña'}
-                    </button>
-                  </div>
-                </form>
-              )}
+                    <div style={{ marginTop: '1.5rem' }}>
+                      <MagneticButton type="submit" loading={loading}>
+                        {loading ? '' : t('auth.changePasswordSubmit')}
+                      </MagneticButton>
+                    </div>
+                  </form>
+                )}
 
-              <button
-                type="button"
-                onClick={() => { setForgotMode(false); setResetStep('request'); setError(''); setResetMessage('') }}
-                style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  color: 'var(--text-muted)', fontSize: 12, marginTop: 16,
-                  display: 'block', textAlign: 'center', width: '100%',
-                }}
-              >
-                ← Volver al login
-              </button>
-            </>
-          )}
+                <button
+                  type="button"
+                  onClick={() => { setForgotMode(false); setResetStep('request'); setError(''); setResetMessage('') }}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: 'var(--text-muted)', fontSize: 12, marginTop: 16,
+                    display: 'block', textAlign: 'center', width: '100%',
+                  }}
+                >
+                  {t('auth.backToLogin')}
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <div className="divider" />
 
           <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-secondary)' }}>
-            ¿Primera vez?{' '}
+            {t('auth.noAccount')}{' '}
             <Link
               to="/register"
               style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 }}
             >
-              Registra tu negocio
+              {t('auth.registerCta')}
             </Link>
           </p>
-        </div>
+        </motion.div>
       </div>
     </div>
   )

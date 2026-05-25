@@ -15,7 +15,16 @@ class Business(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(Text, nullable=False)
     industry = Column(String(50), nullable=True)
+    plan = Column(String(20), nullable=False, default="trial")
+    plan_started_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    __table_args__ = (
+        CheckConstraint(
+            "plan IN ('trial', 'changarro', 'negocio', 'patron')",
+            name="businesses_plan_check",
+        ),
+    )
 
 
 class User(Base):

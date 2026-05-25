@@ -7,8 +7,10 @@ class Settings(BaseSettings):
     database_url: str
     anthropic_api_key: str = "placeholder-not-used"
     gemini_api_key: str = ""
+    groq_api_key: str = ""
     voyage_api_key: str | None = None
-    llm_provider: str = "ollama"  # "ollama" | "claude"
+    llm_provider: str = "ollama"  # "ollama" | "claude" | "groq"
+    groq_model: str = "llama-3.3-70b-versatile"
     jwt_secret: str
     jwt_expire_minutes: int = 1440  # 24 horas
     jwt_refresh_expire_days: int = 7

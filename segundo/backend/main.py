@@ -14,6 +14,7 @@ from app.api.notifications import router as notifications_router
 from app.api.analytics import router as analytics_router
 from app.api.templates import router as templates_router
 from app.api.bulk import router as bulk_router
+from app.api.billing import router as billing_router
 
 # Configure structured logging
 logging.basicConfig(
@@ -60,6 +61,7 @@ app.include_router(notifications_router)
 app.include_router(analytics_router)
 app.include_router(templates_router)
 app.include_router(bulk_router)
+app.include_router(billing_router)
 
 
 @app.post("/admin/clear-cache")

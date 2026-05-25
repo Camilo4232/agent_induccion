@@ -2,68 +2,60 @@
 
 Esta guía te lleva paso a paso desde una PC vacía hasta tener Segundo corriendo en tu navegador.
 
-> **Importante sobre los comandos:** cada bloque de código indica si es para **PowerShell (Windows)** o **Bash (Mac/Linux)**. Los comandos cambian entre sistemas operativos — copia el bloque que corresponde al tuyo.
+> **Sobre los comandos:** cada bloque indica si es para **PowerShell (Windows)** o **Bash (Mac/Linux)**. Copia el bloque que corresponde a tu sistema.
 
 ---
 
 ## Tabla de contenido
 
-1. [Lo que vas a instalar](#1-lo-que-vas-a-instalar)
-2. [Instalar el software base](#2-instalar-el-software-base)
-3. [Clonar el repositorio](#3-clonar-el-repositorio)
-4. [Configurar la base de datos en Supabase](#4-configurar-la-base-de-datos-en-supabase)
-5. [Configurar el backend](#5-configurar-el-backend)
-6. [Configurar el frontend](#6-configurar-el-frontend)
-7. [Configurar el modelo de IA](#7-configurar-el-modelo-de-ia)
-8. [Levantar la aplicación](#8-levantar-la-aplicación)
-9. [Verificar que todo funciona](#9-verificar-que-todo-funciona)
-10. [Solución de problemas](#10-solución-de-problemas)
+1. [Pre-requisitos](#1-pre-requisitos)
+2. [Clonar el repositorio](#2-clonar-el-repositorio)
+3. [Configurar Supabase (base de datos)](#3-configurar-supabase-base-de-datos)
+4. [Configurar el backend](#4-configurar-el-backend)
+5. [Configurar el frontend](#5-configurar-el-frontend)
+6. [Levantar la aplicación](#6-levantar-la-aplicación)
+7. [Verificar que todo funciona](#7-verificar-que-todo-funciona)
+8. [Solución de problemas](#8-solución-de-problemas)
+9. [Cambiar el modelo de IA](#9-cambiar-el-modelo-de-ia)
+10. [Comandos del día a día](#10-comandos-del-día-a-día)
 
 ---
 
-## 1. Lo que vas a instalar
+## 1. Pre-requisitos
 
 | Componente | Para qué |
 |---|---|
 | Python 3.11+ | Lenguaje del backend |
-| Node.js 20+ | Para el frontend (React) |
+| Node.js 20+ | Frontend (React + Vite) |
 | Git | Para clonar el repositorio |
-| Ollama (opcional) | Modelo de IA gratis y local |
+| Cuenta Groq (gratis) | Modelo de IA en la nube — recomendado |
+| Cuenta Supabase (gratis) | Base de datos PostgreSQL + pgvector |
 
-**No instalas PostgreSQL** — la base de datos vive en Supabase.
-
----
-
-## 2. Instalar el software base
+> **No instalas PostgreSQL local** — la DB vive en Supabase.
 
 ### Windows
 
-1. **Python 3.11+**
-   - Descargar de https://www.python.org/downloads/
-   - Durante la instalación marcar la casilla **"Add Python to PATH"**.
+Descargar e instalar (con defaults):
 
-2. **Node.js 20 LTS**
-   - Descargar de https://nodejs.org/ (versión LTS).
-   - Instalar con las opciones por defecto.
+1. **Python 3.11+** → https://www.python.org/downloads/
+   ⚠️ Durante la instalación, **MARCAR "Add Python to PATH"**.
+2. **Node.js 20 LTS** → https://nodejs.org/
+3. **Git** → https://git-scm.com/download/win
 
-3. **Git**
-   - Descargar de https://git-scm.com/download/win
-   - Instalar con las opciones por defecto.
+Verificar en una **PowerShell nueva**:
 
-4. Verificar que todo quedó instalado abriendo **PowerShell** y ejecutando:
+```powershell
+python --version    # 3.11 o más
+node --version      # v20 o más
+git --version
+```
 
-   ```powershell
-   python --version
-   node --version
-   git --version
-   ```
-
-   Debes ver tres versiones. Si alguna falla con "command not found", reinicia la PC y prueba de nuevo.
+Si alguno falla, **cierra todas las PowerShell, abre una nueva** y reintenta. Si sigue fallando, reinicia la PC.
 
 ### Mac
 
 ```bash
-# Instalar Homebrew si no lo tienes: https://brew.sh
+# Si no tienes Homebrew: https://brew.sh
 brew install python@3.11 node@20 git
 ```
 
@@ -76,7 +68,9 @@ sudo apt install python3.11 python3.11-venv python3-pip nodejs npm git
 
 ---
 
-## 3. Clonar el repositorio
+## 2. Clonar el repositorio
+
+En una carpeta **donde NO haya otra carpeta del proyecto** (para evitar duplicación).
 
 ### Windows (PowerShell)
 
@@ -94,35 +88,48 @@ git clone https://github.com/Camilo4232/agent_induccion.git
 cd agent_induccion/segundo
 ```
 
----
-
-## 4. Configurar la base de datos en Supabase
-
-La DB ya existe en la nube. Solo necesitas la **connection string** para conectarte.
-
-### Opción A — Te dieron acceso a un proyecto existente
-
-1. Pide al admin del proyecto la **connection string** (formato `postgresql://...`).
-2. Si el proyecto está pausado: entra a https://supabase.com/dashboard, abre el proyecto y haz clic en **"Restore project"**. Espera 1-2 minutos.
-3. Continúa con el paso 5.
-
-### Opción B — Vas a crear un proyecto nuevo
-
-1. Crea cuenta en https://supabase.com y un proyecto nuevo.
-2. Una vez creado, ve a **SQL editor** (en el menú lateral) y ejecuta:
-   ```sql
-   CREATE EXTENSION IF NOT EXISTS vector;
-   ```
-3. Ve a **Project Settings → Database → Connection pooling**, modo **Transaction**, y copia la URI.
-4. Continúa con el paso 5. Más tarde, en el paso 8, vas a ejecutar `alembic upgrade head` para crear las tablas.
+**Verificación:** después de `cd`, ejecuta `ls` (Mac/Linux) o `dir` (Windows). Debes ver `backend`, `frontend`, `docs`, `README.md`, `INSTALL.md`. Si ves otra carpeta `agent_induccion` adentro, borra todo y reclona afuera del repo.
 
 ---
 
-## 5. Configurar el backend
+## 3. Configurar Supabase (base de datos)
 
-Todo este paso se hace dentro de la carpeta `segundo/backend/`.
+### 3.1 — Crear el proyecto
 
-### 5.1 — Entrar a la carpeta y crear el entorno virtual
+1. Crea cuenta gratis en https://supabase.com.
+2. Click **"New project"**:
+   - **Name**: `segundo` (o lo que quieras).
+   - **Region**: la más cercana (ej. `us-east-2` para Latam Norte, `sa-east-1` para Latam Sur).
+   - **Database password**: ⚠️ **guárdala**, la vas a usar después.
+3. Espera 1-2 minutos hasta que diga "Project ready".
+
+### 3.2 — Activar pgvector
+
+En Supabase → menú lateral → **SQL Editor** → **+ New query**. Pegar y **Run**:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+### 3.3 — Copiar la connection string
+
+En Supabase → **Project Settings** (engranaje abajo a la izquierda) → **Database** → bajar a **"Connection string"** → tab **"URI"** → modo **"Transaction"** (puerto **6543**).
+
+Copia el string completo. Se ve así:
+
+```
+postgresql://postgres.xxxx:[YOUR-PASSWORD]@aws-1-us-east-2.pooler.supabase.com:6543/postgres
+```
+
+Reemplaza `[YOUR-PASSWORD]` por la password real del paso 3.1.
+
+---
+
+## 4. Configurar el backend
+
+Todo este paso se hace dentro de `segundo/backend/`.
+
+### 4.1 — Entrar a la carpeta y crear el venv
 
 **Windows (PowerShell):**
 
@@ -132,7 +139,7 @@ python -m venv venv
 .\venv\Scripts\Activate.ps1
 ```
 
-> Si PowerShell te dice *"no se pueden cargar scripts"*, ejecuta primero:
+> Si PowerShell dice *"no se pueden cargar scripts"*, ejecuta primero:
 > ```powershell
 > Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 > ```
@@ -146,19 +153,40 @@ python3 -m venv venv
 source venv/bin/activate
 ```
 
-> Cuando el entorno está activado, verás `(venv)` al inicio de la línea de la terminal.
+> Cuando el venv está activado verás `(venv)` al inicio del prompt.
 
-### 5.2 — Instalar las dependencias
+### 4.2 — Verificar que el venv está activo y apunta a la carpeta correcta
 
-Mismo comando para todos los sistemas (con el venv activado):
+**Windows:**
+```powershell
+where.exe python
+```
+
+**Mac/Linux:**
+```bash
+which python
+```
+
+La **primera línea** debe terminar en `...\segundo\backend\venv\Scripts\python.exe` (Win) o `.../segundo/backend/venv/bin/python` (Mac/Linux). Si apunta a otra cosa, el venv no está activo.
+
+### 4.3 — Instalar dependencias
+
+Con `(venv)` activo:
 
 ```
 pip install -r requirements.txt
 ```
 
-Esto tarda 1-2 minutos.
+Tarda 1-2 minutos. Verificar al final:
 
-### 5.3 — Crear el archivo `.env`
+```
+pip list | findstr -i "uvicorn alembic fastapi"     # Windows
+pip list | grep -iE "uvicorn|alembic|fastapi"        # Mac/Linux
+```
+
+Debes ver los tres. Si no, repite `pip install -r requirements.txt`.
+
+### 4.4 — Crear el archivo `.env`
 
 **Windows (PowerShell):**
 
@@ -171,41 +199,52 @@ notepad .env
 
 ```bash
 cp .env.example .env
-nano .env       # o code .env si usas VS Code
+nano .env   # o code .env si usas VS Code
 ```
 
-Ahora edita el `.env`. Como mínimo necesitas configurar:
+Edita estos campos:
 
 ```env
-DATABASE_URL=postgresql+asyncpg://postgres.xxx:PASSWORD@aws-0-us-east-2.pooler.supabase.com:6543/postgres
-JWT_SECRET=pega-aqui-un-string-aleatorio-de-48-caracteres
-LLM_PROVIDER=ollama
+DATABASE_URL=postgresql+asyncpg://postgres.xxxx:TU_PASSWORD@aws-1-us-east-2.pooler.supabase.com:6543/postgres
+JWT_SECRET=pega-aqui-el-resultado-del-comando-de-abajo
+LLM_PROVIDER=groq
+GROQ_API_KEY=gsk_tu-key-aqui
+GROQ_MODEL=llama-3.3-70b-versatile
 CORS_ORIGINS=http://localhost:5173
 ```
 
 **Cómo obtener cada valor:**
 
-- `DATABASE_URL`: la connection string del paso 4. **Importante:** cambia el prefijo `postgresql://` por `postgresql+asyncpg://`.
-- `JWT_SECRET`: ejecuta este comando en otra terminal y pega lo que sale:
-
+- **`DATABASE_URL`**: la connection string del paso 3.3. ⚠️ **Cambia el prefijo** `postgresql://` por `postgresql+asyncpg://`. El password no debe llevar `[]` ni espacios.
+- **`JWT_SECRET`**: en otra terminal ejecuta:
   ```
   python -c "import secrets; print(secrets.token_urlsafe(48))"
   ```
-
-- `LLM_PROVIDER`: déjalo en `ollama` por ahora (es gratis). Si después quieres usar Claude, cambia a `claude` y agrega tu `ANTHROPIC_API_KEY`.
+  Pega el resultado.
+- **`GROQ_API_KEY`**: crea cuenta gratis en https://console.groq.com y genera la key en https://console.groq.com/keys (empieza con `gsk_`).
 
 Guarda y cierra el archivo.
 
+### 4.5 — Crear las tablas en Supabase
+
+Con `(venv)` activo y desde `backend/`:
+
+```
+alembic upgrade head
+```
+
+Debe terminar sin errores. Si dice `extension "vector" does not exist`, vuelve al paso 3.2.
+
 ---
 
-## 6. Configurar el frontend
+## 5. Configurar el frontend
 
-Sal de la carpeta backend y entra a frontend.
+Abre **otra terminal** (deja la del backend abierta). Desde la raíz del proyecto:
 
 **Windows (PowerShell):**
 
 ```powershell
-cd ..\frontend
+cd $HOME\Desktop\agent_induccion\segundo\frontend
 "VITE_API_URL=http://localhost:8000" | Out-File -Encoding utf8 .env
 npm install
 ```
@@ -213,7 +252,7 @@ npm install
 **Mac/Linux (Bash):**
 
 ```bash
-cd ../frontend
+cd ~/Desktop/agent_induccion/segundo/frontend
 echo "VITE_API_URL=http://localhost:8000" > .env
 npm install
 ```
@@ -222,55 +261,18 @@ npm install
 
 ---
 
-## 7. Configurar el modelo de IA
+## 6. Levantar la aplicación
 
-Segundo soporta dos opciones. Elige una.
-
-### Opción A — Ollama (gratis, local) — recomendado para empezar
-
-1. Descargar e instalar Ollama desde https://ollama.com/download
-2. Una vez instalado, abre una terminal **nueva** (no la del backend ni la del frontend) y ejecuta:
-
-   ```
-   ollama pull llama3.2
-   ```
-
-   Esto descarga el modelo (~2 GB).
-
-3. Ollama corre como servicio en segundo plano automáticamente. Verifícalo con:
-
-   ```
-   curl http://localhost:11434/api/tags
-   ```
-
-   Debes ver una lista en JSON con los modelos descargados.
-
-4. En `backend/.env` deja `LLM_PROVIDER=ollama` (ya quedó así desde el paso 5).
-
-### Opción B — Claude (pago, mejor calidad)
-
-1. Crear cuenta en https://console.anthropic.com y generar una API key.
-2. Editar `backend/.env`:
-
-   ```env
-   LLM_PROVIDER=claude
-   ANTHROPIC_API_KEY=sk-ant-tu-key-aqui
-   ```
-
----
-
-## 8. Levantar la aplicación
-
-Necesitas **dos terminales abiertas** (tres si usas Ollama).
+Necesitas **dos terminales abiertas al mismo tiempo**.
 
 ### Terminal 1 — Backend
 
 **Windows (PowerShell):**
 
 ```powershell
-cd C:\Users\TU_USUARIO\Desktop\agent_induccion\segundo\backend
+cd $HOME\Desktop\agent_induccion\segundo\backend
 .\venv\Scripts\Activate.ps1
-uvicorn main:app --reload
+uvicorn main:app --reload --port 8000
 ```
 
 **Mac/Linux (Bash):**
@@ -278,17 +280,11 @@ uvicorn main:app --reload
 ```bash
 cd ~/Desktop/agent_induccion/segundo/backend
 source venv/bin/activate
-uvicorn main:app --reload
+uvicorn main:app --reload --port 8000
 ```
-
-> Solo si es un proyecto Supabase nuevo (Opción B del paso 4), antes de `uvicorn` ejecuta una sola vez:
-> ```
-> alembic upgrade head
-> ```
 
 Espera a ver:
 ```
-INFO:     Uvicorn running on http://127.0.0.1:8000
 INFO:     Application startup complete.
 ```
 
@@ -297,7 +293,7 @@ INFO:     Application startup complete.
 **Windows (PowerShell):**
 
 ```powershell
-cd C:\Users\TU_USUARIO\Desktop\agent_induccion\segundo\frontend
+cd $HOME\Desktop\agent_induccion\segundo\frontend
 npm run dev
 ```
 
@@ -310,49 +306,124 @@ npm run dev
 
 Espera a ver:
 ```
-VITE v5.x.x  ready in xxx ms
 ➜  Local:   http://localhost:5173/
 ```
 
-### Terminal 3 — Ollama (solo si elegiste Opción A en paso 7)
+---
 
-Ollama corre solo como servicio. No necesitas hacer nada extra.
+## 7. Verificar que todo funciona
+
+1. **Backend OK** → abrir http://localhost:8000/health
+   Debe devolver `{"status":"ok","version":"2.1.0",...}`.
+
+2. **Frontend OK** → abrir http://localhost:5173
+   Debe mostrar la página de login.
+
+3. **Conexión completa** → en la página de login, click en **"Entrar como Dueño"**.
+   Si te redirige al dashboard, **todo está funcionando**.
+
+4. **API docs** (opcional) → http://localhost:8000/docs (Swagger).
 
 ---
 
-## 9. Verificar que todo funciona
+## 8. Solución de problemas
 
-1. **Backend OK:** abrir http://localhost:8000/health en el navegador. Debes ver:
-   ```json
-   {"status":"ok","version":"2.1.0",...}
-   ```
-
-2. **Frontend OK:** abrir http://localhost:5173 — debes ver la página de login de Segundo.
-
-3. **Conexión front ↔ back OK:** en la página de login, hacer clic en **"Entrar como Dueño"**. Si te redirige al dashboard, todo está funcionando.
-
-4. **Documentación interactiva del API:** http://localhost:8000/docs (Swagger).
-
----
-
-## 10. Solución de problemas
-
-| Problema | Causa | Solución |
+| Síntoma | Causa | Fix |
 |---|---|---|
-| `python` no se reconoce | No marcaste "Add to PATH" al instalar | Reinstalar Python marcando esa casilla, o reiniciar la PC |
-| `cannot be loaded because running scripts is disabled` (PowerShell) | Política de ejecución restringida | `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned` |
-| `ModuleNotFoundError: No module named 'fastapi'` | Olvidaste activar el venv | Ejecutar de nuevo `.\venv\Scripts\Activate.ps1` (Win) o `source venv/bin/activate` (Mac/Linux) |
-| `JWT_SECRET debe tener al menos 32 caracteres` | El valor en `.env` es muy corto | Generar uno con `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
-| `extension "vector" does not exist` | No corriste `CREATE EXTENSION vector` en Supabase | Ir al SQL editor de Supabase y ejecutar `CREATE EXTENSION IF NOT EXISTS vector;` |
-| `Connection refused` al preguntar algo | Ollama no está corriendo | Verificar con `curl http://localhost:11434/api/tags` — si falla, abrir Ollama |
-| `model 'llama3.2' not found` | No descargaste el modelo | `ollama pull llama3.2` |
-| El frontend dice "No se pudo iniciar el modo demo" | `VITE_API_URL` apunta al puerto incorrecto | Verificar que `frontend/.env` diga `VITE_API_URL=http://localhost:8000` y reiniciar `npm run dev` |
-| El proyecto Supabase está "Paused" | Plan free se pausa tras 7 días sin uso | En el dashboard de Supabase clickear "Restore project" |
+| `uvicorn` / `alembic` no se reconoce | `(venv)` no activado o vacío | Reactivar (`.\venv\Scripts\Activate.ps1`) y verificar con `where.exe python`. Si el venv está vacío: `pip install -r requirements.txt` |
+| `python no se reconoce` | No marcaste "Add to PATH" | Reinstalar Python con la casilla marcada, o reiniciar la PC |
+| `cannot be loaded because running scripts is disabled` | Política PowerShell restrictiva | `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned` |
+| `ENOTFOUND tenant/user postgres.xxx not found` | Proyecto Supabase pausado o ID equivocado | En Supabase dashboard → click **"Restore project"**. Esperar 1-2 min |
+| `password authentication failed` | Password mal en `DATABASE_URL` | Revisar `.env`: no debe tener `[]`, espacios ni caracteres especiales sin escapar |
+| `extension "vector" does not exist` | Falta paso 3.2 | Correr `CREATE EXTENSION vector;` en Supabase SQL Editor |
+| `JWT_SECRET debe tener al menos 32 caracteres` | Falta el secret | Generarlo con `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
+| Backend arranca pero `/ask` falla con 500 | `GROQ_API_KEY` falta o inválida | Verificar en `.env` que empiece con `gsk_` y reiniciar backend |
+| `ModuleNotFoundError: No module named 'fastapi'` | Venv inactivo | Reactivar el venv |
+| Frontend dice "No se pudo iniciar el modo demo" | `VITE_API_URL` mal | Revisar `frontend/.env` → `VITE_API_URL=http://localhost:8000` y reiniciar `npm run dev` |
+| Carpeta `agent_induccion\agent_induccion` anidada | Clonaste dentro del repo | Borrar la carpeta interna y reclonar afuera. Crear venv fresco |
 | `psycopg2` falla al instalar (Mac/Linux) | Falta `libpq-dev` | Linux: `sudo apt install libpq-dev` · Mac: `brew install postgresql` |
-| Búsqueda semántica devuelve resultados raros | Estás usando embeddings mock | Configurar `VOYAGE_API_KEY` en `.env` |
-| El botón de voz no transcribe | Falta `GROQ_API_KEY` | Configurar la key en `.env` |
-| Error 401 después de un rato | Token JWT expirado (24h) | Cerrar sesión y volver a entrar |
-| `RateLimitExceeded` en `/ask` | Más de 10 preguntas por minuto | Esperar 1 minuto |
+| `RateLimitExceeded` en `/ask` | Más de 10 preguntas/min | Esperar 1 minuto |
+| Error 401 después de un rato | JWT expiró (24h) | Cerrar sesión y entrar de nuevo |
+
+---
+
+## 9. Cambiar el modelo de IA
+
+Solo edita `backend/.env` y reinicia el backend (`Ctrl+C` y volver a ejecutar `uvicorn main:app --reload`).
+
+```env
+# Opción 1 — Groq (recomendado, gratis con cuota generosa)
+LLM_PROVIDER=groq
+GROQ_API_KEY=gsk_...
+GROQ_MODEL=llama-3.3-70b-versatile
+
+# Opción 2 — Ollama local (100% offline)
+LLM_PROVIDER=ollama
+# Requiere: instalar Ollama desde https://ollama.com/download
+# y descargar el modelo: ollama pull llama3.2
+
+# Opción 3 — Claude (Anthropic, pago)
+LLM_PROVIDER=claude
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+### Modelos Groq disponibles
+
+| Modelo | Velocidad | Calidad |
+|---|---|---|
+| `llama-3.3-70b-versatile` | Rápido | **Excelente** (default) |
+| `llama-3.1-8b-instant` | Muy rápido | Buena |
+| `mixtral-8x7b-32768` | Rápido | Buena, contexto largo (32k) |
+| `gemma2-9b-it` | Rápido | Buena |
+
+Lista completa: https://console.groq.com/docs/models
+
+No hace falta tocar nada más del código.
+
+---
+
+## 10. Comandos del día a día
+
+Una vez instalado, estos son los comandos que vas a usar:
+
+### Iniciar la app (dos terminales)
+
+**Terminal 1 — Backend (Windows):**
+```powershell
+cd $HOME\Desktop\agent_induccion\segundo\backend
+.\venv\Scripts\Activate.ps1
+uvicorn main:app --reload --port 8000
+```
+
+**Terminal 2 — Frontend (Windows):**
+```powershell
+cd $HOME\Desktop\agent_induccion\segundo\frontend
+npm run dev
+```
+
+Mac/Linux equivalente:
+```bash
+# Terminal 1
+cd ~/Desktop/agent_induccion/segundo/backend && source venv/bin/activate && uvicorn main:app --reload --port 8000
+
+# Terminal 2
+cd ~/Desktop/agent_induccion/segundo/frontend && npm run dev
+```
+
+### Detener
+
+`Ctrl+C` en cada terminal.
+
+### Actualizar el código desde GitHub
+
+```
+git pull
+```
+
+Después:
+- Si cambió `backend/requirements.txt`: con el venv activo → `pip install -r requirements.txt`.
+- Si cambió `frontend/package.json`: en `frontend/` → `npm install`.
+- Si hay nuevas migraciones: en `backend/` con venv activo → `alembic upgrade head`.
 
 ---
 
@@ -364,6 +435,7 @@ agent_induccion/
     ├── README.md             ← overview corto
     ├── INSTALL.md            ← este archivo
     ├── docs/                 ← documentación detallada
+    ├── sample_data/          ← CSVs de ejemplo para entrenar
     ├── backend/
     │   ├── main.py           ← entrada de FastAPI
     │   ├── requirements.txt
@@ -374,64 +446,14 @@ agent_induccion/
     │       ├── db/           ← modelos + schemas
     │       ├── services/     ← claude.py (switch LLM), embeddings.py
     │       ├── agents/       ← orchestrator + sub-agents
-    │       └── api/          ← routers HTTP
+    │       └── api/          ← routers HTTP (auth, teach, ask, billing, ...)
     └── frontend/
         ├── package.json
         ├── vite.config.js
         └── src/
-            ├── pages/        ← Login, Register, OwnerDashboard, EmployeeChat
-            ├── components/   ← ChatInput, VoiceButton, KnowledgeCard, ...
+            ├── pages/        ← Login, Register, OwnerDashboard, EmployeeChat, Pricing
+            ├── components/   ← TeachInput, VoiceButton, PricingPanel, ...
             ├── services/     ← api.js (axios + auto-refresh JWT)
-            └── store/        ← Zustand (auth)
+            ├── store/        ← Zustand (auth)
+            └── i18n/         ← ES / EN / PT
 ```
-
----
-
-## Comandos de referencia rápida
-
-Una vez instalado, estos son los comandos que vas a usar día a día:
-
-### Iniciar todo (con la app ya instalada)
-
-**Windows (PowerShell), terminal 1:**
-```powershell
-cd C:\Users\TU_USUARIO\Desktop\agent_induccion\segundo\backend
-.\venv\Scripts\Activate.ps1
-uvicorn main:app --reload
-```
-
-**Windows (PowerShell), terminal 2:**
-```powershell
-cd C:\Users\TU_USUARIO\Desktop\agent_induccion\segundo\frontend
-npm run dev
-```
-
-### Detener la aplicación
-
-En cada terminal, presiona `Ctrl+C`.
-
-### Actualizar el código desde GitHub
-
-```
-cd agent_induccion
-git pull
-```
-
-Después, si cambió `requirements.txt`, vuelve a ejecutar `pip install -r requirements.txt` con el venv activado. Si cambió `package.json`, ejecuta `npm install` en `frontend/`.
-
----
-
-## Cambiar entre Ollama y Claude
-
-Solo edita `backend/.env` y reinicia el backend (Ctrl+C y volver a ejecutar `uvicorn main:app --reload`).
-
-```env
-# Para Ollama
-LLM_PROVIDER=ollama
-
-# Para Claude
-LLM_PROVIDER=claude
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
-No hace falta tocar nada más del código.

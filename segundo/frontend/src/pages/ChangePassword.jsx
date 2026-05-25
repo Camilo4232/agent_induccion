@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { authAPI } from '../services/api'
 import useStore from '../store/useStore'
+import LangSwitcher from '../components/LangSwitcher'
 
 export default function ChangePassword() {
+  const { t } = useTranslation()
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -18,7 +21,7 @@ export default function ChangePassword() {
     e.preventDefault()
     setError('')
     if (next !== confirm) {
-      setError('Las contraseñas nuevas no coinciden')
+      setError(t('auth.changePassword.errorMismatch'))
       return
     }
     setLoading(true)
@@ -26,7 +29,7 @@ export default function ChangePassword() {
       await authAPI.changePassword(current, next)
       navigate(user?.role === 'owner' ? '/dashboard' : '/chat')
     } catch (err) {
-      setError(err.response?.data?.detail || 'Error al cambiar la contraseña')
+      setError(err.response?.data?.detail || t('auth.changePassword.errorGeneric'))
     } finally {
       setLoading(false)
     }
@@ -65,29 +68,31 @@ export default function ChangePassword() {
             lineHeight: 1.15, color: 'var(--text-primary)',
             marginBottom: '1rem', maxWidth: 320,
           }}>
-            Un último<br />
-            <em style={{ color: 'var(--accent)', fontStyle: 'italic' }}>paso.</em>
+            {t('auth.changePassword.headline1')}<br />
+            <em style={{ color: 'var(--accent)', fontStyle: 'italic' }}>{t('auth.changePassword.headline2')}</em>
           </h2>
 
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px', lineHeight: 1.6, maxWidth: 300 }}>
-            Por seguridad, crea tu propia contraseña antes de empezar.
-            La contraseña temporal que recibiste ya no funcionará después de este cambio.
+            {t('auth.changePassword.subtitle')}
           </p>
         </div>
 
         <p style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
-          © 2026 Segundo · Para negocios reales en Latinoamérica
+          {t('auth.footer')}
         </p>
       </div>
 
       <div className="auth-right">
         <div className="auth-form-box fade-in">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+            <LangSwitcher compact />
+          </div>
           <div style={{ marginBottom: '2rem' }}>
             <p style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '6px' }}>
-              Primer acceso
+              {t('auth.changePassword.eyebrow')}
             </p>
             <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.8rem', color: 'var(--text-primary)' }}>
-              Crea tu contraseña
+              {t('auth.changePassword.title')}
             </h1>
           </div>
 
@@ -95,19 +100,20 @@ export default function ChangePassword() {
 
           <form onSubmit={handleSubmit}>
             <div className="field-group">
-              <label className="field-label">Contraseña temporal</label>
+              <label className="field-label">{t('auth.changePassword.tempLabel')}</label>
               <div style={{ position: 'relative' }}>
                 <input
                   className="field-input"
                   type={showCurrent ? 'text' : 'password'}
                   value={current}
                   onChange={e => setCurrent(e.target.value)}
-                  placeholder="La contraseña que te compartió el dueño"
+                  placeholder={t('auth.changePassword.tempPlaceholder')}
                   required
                   autoFocus
                   style={{ paddingRight: '2.5rem' }}
                 />
                 <button type="button" onClick={() => setShowCurrent(v => !v)} tabIndex={-1}
+                  aria-label={showCurrent ? t('auth.hidePassword') : t('auth.showPassword')}
                   style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
                   <EyeIcon visible={showCurrent} />
                 </button>
@@ -115,19 +121,20 @@ export default function ChangePassword() {
             </div>
 
             <div className="field-group">
-              <label className="field-label">Nueva contraseña</label>
+              <label className="field-label">{t('auth.changePassword.newLabel')}</label>
               <div style={{ position: 'relative' }}>
                 <input
                   className="field-input"
                   type={showNext ? 'text' : 'password'}
                   value={next}
                   onChange={e => setNext(e.target.value)}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder={t('auth.changePassword.newPlaceholder')}
                   required
                   minLength={6}
                   style={{ paddingRight: '2.5rem' }}
                 />
                 <button type="button" onClick={() => setShowNext(v => !v)} tabIndex={-1}
+                  aria-label={showNext ? t('auth.hidePassword') : t('auth.showPassword')}
                   style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
                   <EyeIcon visible={showNext} />
                 </button>
@@ -135,13 +142,13 @@ export default function ChangePassword() {
             </div>
 
             <div className="field-group">
-              <label className="field-label">Confirmar nueva contraseña</label>
+              <label className="field-label">{t('auth.changePassword.confirmLabel')}</label>
               <input
                 className="field-input"
                 type="password"
                 value={confirm}
                 onChange={e => setConfirm(e.target.value)}
-                placeholder="Repite la nueva contraseña"
+                placeholder={t('auth.changePassword.confirmPlaceholder')}
                 required
                 minLength={6}
               />
@@ -149,7 +156,7 @@ export default function ChangePassword() {
 
             <div style={{ marginTop: '1.5rem' }}>
               <button className="btn-primary" type="submit" disabled={loading}>
-                {loading ? 'Guardando...' : 'Guardar y entrar →'}
+                {loading ? t('auth.changePassword.submitLoading') : t('auth.changePassword.submit')}
               </button>
             </div>
           </form>

@@ -136,4 +136,10 @@ export const analyticsAPI = {
   knowledgeUsage: () => api.get('/analytics/knowledge-usage'),
 }
 
+export const billingAPI = {
+  listPlans: () => api.get('/billing/plans'),
+  myPlan: () => api.get('/billing/plan'),
+  subscribe: (plan) => api.post('/billing/subscribe', { plan }),
+}
+
 export default api

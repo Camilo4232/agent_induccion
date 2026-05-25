@@ -37,7 +37,8 @@ async def _vector_search(
     role: str = "employee",
 ) -> list[dict]:
     embedding = generate_embedding_cached(question)
-    embedding_str = "[" + ",".join(str(x) for x in embedding) + "]"
+    embedding_str = "[" + ",".join(str(float(x)) for x in embedding) + "]"
+    emb_lit = f"'{embedding_str}'::vector"
     # Cosine distance threshold: distance < (1 - similarity) means similarity > threshold
     max_distance = 1.0 - SIMILARITY_THRESHOLD
     sensitivity_filter = "" if role == "owner" else "AND (sensitivity = 'public' OR sensitivity IS NULL)"
@@ -45,19 +46,18 @@ async def _vector_search(
     if domain:
         sql = text(f"""
             SELECT id, processed_fact, category, domain,
-                   1 - (embedding_vec <=> :embedding::vector) AS similarity
+                   1 - (embedding_vec <=> {emb_lit}) AS similarity
             FROM knowledge_entries
             WHERE business_id = :business_id
               AND is_active = true
               AND embedding_vec IS NOT NULL
               AND domain = :domain
-              AND (embedding_vec <=> :embedding::vector) < :max_distance
+              AND (embedding_vec <=> {emb_lit}) < :max_distance
               {sensitivity_filter}
-            ORDER BY embedding_vec <=> :embedding::vector
+            ORDER BY embedding_vec <=> {emb_lit}
             LIMIT :top_k
         """)
         result = await db.execute(sql, {
-            "embedding": embedding_str,
             "business_id": str(business_id),
             "domain": domain,
             "top_k": TOP_K,
@@ -66,18 +66,17 @@ async def _vector_search(
     else:
         sql = text(f"""
             SELECT id, processed_fact, category, domain,
-                   1 - (embedding_vec <=> :embedding::vector) AS similarity
+                   1 - (embedding_vec <=> {emb_lit}) AS similarity
             FROM knowledge_entries
             WHERE business_id = :business_id
               AND is_active = true
               AND embedding_vec IS NOT NULL
-              AND (embedding_vec <=> :embedding::vector) < :max_distance
+              AND (embedding_vec <=> {emb_lit}) < :max_distance
               {sensitivity_filter}
-            ORDER BY embedding_vec <=> :embedding::vector
+            ORDER BY embedding_vec <=> {emb_lit}
             LIMIT :top_k
         """)
         result = await db.execute(sql, {
-            "embedding": embedding_str,
             "business_id": str(business_id),
             "top_k": TOP_K,
             "max_distance": max_distance,

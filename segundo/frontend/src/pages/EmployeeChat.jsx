@@ -1,10 +1,26 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useTranslation } from 'react-i18next'
 import useStore from '../store/useStore'
 import { askAPI, briefingAPI } from '../services/api'
 import VoiceButton from '../components/VoiceButton'
+import LangSwitcher from '../components/LangSwitcher'
+import PricingPanel from '../components/PricingPanel'
+
+function pickIndices(seed, poolSize, count = 3) {
+  const idx = []
+  let n = seed
+  while (idx.length < count && idx.length < poolSize) {
+    n = (n * 9301 + 49297) % 233280
+    const i = Math.floor((n / 233280) * poolSize)
+    if (!idx.includes(i)) idx.push(i)
+  }
+  return idx
+}
 
 export default function EmployeeChat() {
+  const { t } = useTranslation()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [sessionId, setSessionId] = useState(null)
@@ -13,17 +29,58 @@ export default function EmployeeChat() {
   const [slowWarning, setSlowWarning] = useState(false)
   const [sessions, setSessions] = useState([])
   const [showSessions, setShowSessions] = useState(false)
+  const [showPlan, setShowPlan] = useState(false)
+  const [sessionsExpanded, setSessionsExpanded] = useState(true)
   const [briefing, setBriefing] = useState(null)
   const [loadingBriefing, setLoadingBriefing] = useState(false)
-  const [voiceState, setVoiceState] = useState('idle') // 'idle' | 'recording' | 'transcribing'
+  const [briefingExpanded, setBriefingExpanded] = useState(true)
+  const [voiceState, setVoiceState] = useState('idle')
+  const [isAtBottom, setIsAtBottom] = useState(true)
+  const [hasNewMessage, setHasNewMessage] = useState(false)
+  const scrollRef = useRef(null)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const { user, logout } = useStore()
   const navigate = useNavigate()
 
+  // Sugerencias estables por sesión, traducidas según el idioma actual.
+  const seed = useMemo(() => Date.now(), [])
+  const suggestions = useMemo(() => {
+    const pool = t('chat.suggestions', { returnObjects: true })
+    const arr = Array.isArray(pool) ? pool : Object.values(pool || {})
+    return pickIndices(seed, arr.length, 3).map(i => arr[i])
+  }, [t, seed])
+
+  function errorMessage(err) {
+    if (!err.response) return t('chat.errors.noConnection')
+    const s = err.response?.status
+    if (s === 429) return t('chat.errors.rateLimit')
+    if (s === 500) return t('chat.errors.server')
+    return t('chat.errors.generic')
+  }
+
+  // Auto-scroll inteligente: solo si el usuario está al fondo
   useEffect(() => {
+    if (isAtBottom) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+      setHasNewMessage(false)
+    } else if (messages.length > 0 && messages[messages.length - 1].role === 'assistant') {
+      setHasNewMessage(true)
+    }
+  }, [messages, isAtBottom])
+
+  function handleScroll() {
+    const el = scrollRef.current
+    if (!el) return
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+    setIsAtBottom(atBottom)
+    if (atBottom) setHasNewMessage(false)
+  }
+
+  function jumpToBottom() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    setHasNewMessage(false)
+  }
 
   useEffect(() => { loadSessions() }, [])
 
@@ -33,7 +90,7 @@ export default function EmployeeChat() {
       const { data } = await briefingAPI.generate()
       setBriefing(data.briefing)
     } catch {
-      setBriefing('No pude cargar el resumen. Puedes hacer preguntas directamente.')
+      setBriefing(t('chat.briefingError'))
     } finally {
       setLoadingBriefing(false)
     }
@@ -47,9 +104,9 @@ export default function EmployeeChat() {
     setFailedMessage(null)
     setSlowWarning(false)
     setMessages(prev => [...prev, { role: 'user', content: question }])
+    setIsAtBottom(true)
     setLoading(true)
 
-    // Show slow warning after 30s
     const slowTimer = setTimeout(() => setSlowWarning(true), 30000)
 
     try {
@@ -64,16 +121,11 @@ export default function EmployeeChat() {
         sources: data.sources || [],
       }])
     } catch (err) {
-      const status = err.response?.status
-      let errorMsg = 'Hubo un error al contactar a Segundo.'
-      if (status === 429) errorMsg = 'Demasiadas preguntas seguidas. Espera un momento.'
-      else if (status === 500) errorMsg = 'Error del servidor. Intenta de nuevo.'
-      else if (!err.response) errorMsg = 'Sin conexión a internet. Verifica tu red.'
-
-      setFailedMessage({ question, error: errorMsg })
+      const msg = errorMessage(err)
+      setFailedMessage({ question, error: msg })
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: errorMsg,
+        content: msg,
         confidence: 'error',
         isError: true,
       }])
@@ -89,7 +141,6 @@ export default function EmployeeChat() {
     if (failedMessage) {
       setInput(failedMessage.question)
       setFailedMessage(null)
-      // Remove the error message
       setMessages(prev => prev.filter(m => !m.isError))
       setTimeout(() => handleSend(), 50)
     }
@@ -125,275 +176,355 @@ export default function EmployeeChat() {
     }
   }
 
+  const toolLabel = (tool) => {
+    const map = {
+      search_pricing: t('chat.tools.pricing'),
+      search_returns: t('chat.tools.returns'),
+      search_inventory: t('chat.tools.inventory'),
+      search_schedule: t('chat.tools.schedule'),
+      search_policies: t('chat.tools.policies'),
+      search_general: t('chat.tools.general'),
+    }
+    return map[tool] || tool.replace('search_', '').replace(/_/g, ' ')
+  }
+
+  function shouldShowSegundoMark(idx) {
+    const msg = messages[idx]
+    if (msg.role !== 'assistant') return false
+    return !messages.slice(0, idx).some(m => m.role === 'assistant')
+  }
+
   return (
     <div className="app-shell">
-      {/* Header */}
+      {/* Header — wordmark coherente con el dashboard */}
       <header className="app-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: 6,
-            background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 13, fontWeight: 700, color: '#0e0e0e',
-          }}>S</div>
-          <span className="app-logo">Segundo</span>
-          <span style={{
-            marginLeft: 4, fontSize: 11, color: 'var(--text-muted)',
-            fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase',
-          }}>Asistente del negocio</span>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <span className="wordmark">
+            Segundo<span className="wordmark-dot" aria-hidden />
+          </span>
+          <span className="wordmark-tag">{t('chat.tag')}</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{user?.email}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <LangSwitcher compact />
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{user?.email}</span>
           <button
             onClick={() => { setShowSessions(s => !s); if (!showSessions) loadSessions() }}
             style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}
           >
-            Historial
+            {t('common.history')}
+          </button>
+          <button
+            onClick={() => setShowPlan(true)}
+            style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}
+          >
+            {t('owner.tabs.plan')}
           </button>
           <button
             onClick={() => { logout(); navigate('/login') }}
             style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}
           >
-            Salir
+            {t('common.exit')}
           </button>
         </div>
       </header>
 
-      {/* Sessions sidebar */}
-      {showSessions && (
-        <div style={{
-          background: 'var(--bg-card)', borderBottom: '1px solid var(--border)',
-          padding: '0.75rem 1rem', maxHeight: 300, overflowY: 'auto',
-        }}>
-          <div style={{ maxWidth: 660, margin: '0 auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                Conversaciones recientes
-              </span>
-              <button
-                onClick={handleNewConversation}
-                style={{
-                  fontSize: 12, color: 'var(--accent)', background: 'none',
-                  border: '1px solid rgba(212,168,83,0.3)', borderRadius: 6,
-                  padding: '4px 10px', cursor: 'pointer',
-                }}
-              >
-                + Nueva
-              </button>
-            </div>
-            {sessions.length === 0 ? (
-              <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No hay conversaciones anteriores.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {sessions.map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => selectSession(s.id)}
-                    style={{
-                      background: s.id === sessionId ? 'rgba(212,168,83,0.08)' : 'transparent',
-                      border: '1px solid',
-                      borderColor: s.id === sessionId ? 'rgba(212,168,83,0.3)' : 'var(--border)',
-                      borderRadius: 8, padding: '8px 12px', textAlign: 'left',
-                      cursor: 'pointer', display: 'flex', justifyContent: 'space-between',
-                      alignItems: 'center', width: '100%',
-                    }}
-                  >
-                    <span style={{ fontSize: 13, color: 'var(--text-primary)', flex: 1 }}>
-                      {s.preview || 'Conversación vacía'}
-                    </span>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0, marginLeft: 8 }}>
-                      {s.started_at ? new Date(s.started_at).toLocaleDateString() : ''}
-                    </span>
+      {/* Sessions panel */}
+      <AnimatePresence>
+        {showSessions && (
+          <motion.div
+            className="sessions-panel"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22 }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div style={{ maxWidth: 660, margin: '0 auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  {t('chat.history')}
+                </span>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <button onClick={handleNewConversation} className="sessions-new-btn">
+                    {t('chat.newConversation')}
                   </button>
-                ))}
+                  <button
+                    onClick={() => setSessionsExpanded(e => !e)}
+                    aria-label={sessionsExpanded ? t('common.collapse') : t('common.expand')}
+                    aria-expanded={sessionsExpanded}
+                    className="sessions-close"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: sessionsExpanded ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform 0.2s' }}>
+                      <polyline points="18 15 12 9 6 15" />
+                    </svg>
+                  </button>
+                </div>
               </div>
-            )}
-          </div>
-        </div>
-      )}
+              <AnimatePresence initial={false}>
+                {sessionsExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.22 }}
+                    style={{ overflow: 'hidden' }}
+                  >
+                    {sessions.length === 0 ? (
+                      <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{t('chat.noPreviousConversations')}</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        {sessions.map(s => (
+                          <button
+                            key={s.id}
+                            onClick={() => selectSession(s.id)}
+                            className={`session-item ${s.id === sessionId ? 'is-active' : ''}`}
+                          >
+                            <span style={{ fontSize: 13, color: 'var(--text-primary)', flex: 1 }}>
+                              {s.preview || t('chat.emptyConversation')}
+                            </span>
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0, marginLeft: 8 }}>
+                              {s.started_at ? new Date(s.started_at).toLocaleDateString() : ''}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Messages area */}
-      <div id="main-content" style={{ flex: 1, overflowY: 'auto', padding: '1.5rem 1rem' }}>
-        <div style={{ maxWidth: 660, margin: '0 auto' }}>
+      <div
+        id="main-content"
+        ref={scrollRef}
+        onScroll={handleScroll}
+        style={{ flex: 1, overflowY: 'auto', padding: '1.5rem 1rem', position: 'relative' }}
+      >
+        <div style={{ maxWidth: 680, margin: '0 auto' }}>
 
           {/* Empty state */}
           {messages.length === 0 && (
-            <div style={{ textAlign: 'center', paddingTop: '4rem' }} className="fade-in">
-              <div style={{
-                width: 52, height: 52, borderRadius: 12,
-                background: 'var(--accent-dim)', border: '1px solid rgba(212,168,83,0.2)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                margin: '0 auto 1rem',
-                fontFamily: 'var(--font-serif)', fontSize: '1.4rem', color: 'var(--accent)',
-              }}>S</div>
-              <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.4rem', color: 'var(--text-primary)', marginBottom: 6 }}>
-                Hola, soy Segundo
+            <motion.div
+              style={{ textAlign: 'center', paddingTop: '3rem' }}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+            >
+              <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.5rem', color: 'var(--text-primary)', marginBottom: 8, letterSpacing: '-0.005em' }}>
+                {t('chat.emptyTitle')}
               </h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: '1.5rem' }}>
-                Pregúntame lo que necesitas saber sobre el negocio
+              <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: '2rem', lineHeight: 1.6, maxWidth: 460, margin: '0 auto 2rem' }}>
+                {t('chat.emptySubtitle')}
               </p>
 
               {briefing ? (
-                <div style={{
-                  background: 'var(--bg-card)', border: '1px solid rgba(212,168,83,0.2)',
-                  borderRadius: 12, padding: '1rem 1.2rem', textAlign: 'left', maxWidth: 440, margin: '0 auto',
-                }}>
-                  <p style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
-                    Resumen del día
-                  </p>
-                  <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{briefing}</p>
-                </div>
+                <motion.div
+                  className="briefing-card"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  style={{ position: 'relative' }}
+                >
+                  <button
+                    onClick={() => setBriefingExpanded(e => !e)}
+                    aria-label={briefingExpanded ? t('common.collapse') : t('common.expand')}
+                    aria-expanded={briefingExpanded}
+                    className="briefing-toggle"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: briefingExpanded ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform 0.2s' }}>
+                      <polyline points="18 15 12 9 6 15" />
+                    </svg>
+                  </button>
+                  <span className="briefing-label">{t('chat.briefingLabel')}</span>
+                  <AnimatePresence initial={false}>
+                    {briefingExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.25 }}
+                        style={{ overflow: 'hidden' }}
+                      >
+                        <p className="briefing-body" style={{ marginTop: 4 }}>{briefing}</p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
               ) : (
                 <button
                   onClick={handleLoadBriefing}
                   disabled={loadingBriefing}
-                  style={{
-                    background: 'var(--accent-dim)', border: '1px solid rgba(212,168,83,0.2)',
-                    color: 'var(--accent)', borderRadius: 8, padding: '9px 18px',
-                    fontSize: 13, fontWeight: 500, cursor: 'pointer',
-                    fontFamily: 'var(--font-sans)',
-                  }}
+                  className="briefing-cta"
                 >
-                  {loadingBriefing ? 'Cargando...' : '✦ Ver resumen del día'}
+                  {loadingBriefing ? t('chat.briefingLoading') : t('chat.briefingCta')}
                 </button>
               )}
 
-              {/* Quick suggestions */}
-              <div style={{ marginTop: '1.5rem', display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-                {['¿Cuál es el descuento máximo?', '¿Qué hago con una devolución?', '¿Cuándo llega el proveedor?'].map(q => (
-                  <button
-                    key={q}
-                    onClick={() => { setInput(q); setTimeout(() => handleSend(), 10) }}
-                    style={{
-                      background: 'var(--bg-card)', border: '1px solid var(--border)',
-                      color: 'var(--text-secondary)', borderRadius: 20, padding: '6px 14px',
-                      fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                      transition: 'border-color 0.15s, color 0.15s',
-                    }}
-                    onMouseOver={e => { e.target.style.borderColor = 'var(--text-muted)'; e.target.style.color = 'var(--text-primary)' }}
-                    onMouseOut={e => { e.target.style.borderColor = 'var(--border)'; e.target.style.color = 'var(--text-secondary)' }}
-                  >
-                    {q}
-                  </button>
-                ))}
+              {/* Sugerencias */}
+              <div style={{ marginTop: '2rem' }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12, display: 'block' }}>
+                  {t('chat.suggestionsLabel')}
+                </span>
+                <div className="chat-suggestions">
+                  {suggestions.map(q => (
+                    <button
+                      key={q}
+                      onClick={() => { setInput(q); setTimeout(() => inputRef.current?.focus(), 30) }}
+                      className="chip-suggestion"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            </motion.div>
           )}
 
           {/* Messages */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} role="log" aria-live="polite">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }} role="log" aria-live="polite">
             {messages.map((msg, i) => (
-              <div key={i} className="fade-in" style={{ animationDelay: `${Math.min(i * 0.05, 0.3)}s` }}>
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.22 }}
+              >
                 {msg.role === 'user' ? (
                   <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <div className="chat-bubble-user">{msg.content}</div>
                   </div>
                 ) : (
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
-                      <div style={{
-                        width: 24, height: 24, borderRadius: 6, flexShrink: 0,
-                        background: 'rgba(212,168,83,0.15)', border: '1px solid rgba(212,168,83,0.2)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 10, fontWeight: 700, color: 'var(--accent)',
-                      }}>S</div>
-                      <div className="chat-bubble-assistant" style={msg.isError ? { borderColor: 'rgba(220,38,38,0.3)', background: 'rgba(220,38,38,0.04)' } : undefined}>{msg.content}</div>
+                    {shouldShowSegundoMark(i) && (
+                      <span className="chat-segundo-mark">{t('chat.segundoReplies')}</span>
+                    )}
+                    <div
+                      className="chat-bubble-assistant"
+                      style={msg.isError ? { borderLeftColor: '#b06b48', background: 'rgba(176,107,72,0.04)' } : undefined}
+                    >
+                      {msg.content}
                     </div>
-                    {/* Badges */}
-                    <div style={{ display: 'flex', gap: 6, marginTop: 6, marginLeft: 32, flexWrap: 'wrap' }}>
+                    {/* Badges (sin emojis decorativos) */}
+                    <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
                       {msg.confidence === 'escalated' && (
-                        <span className="badge badge-escalated">⚡ Escalado al encargado</span>
+                        <span className="badge badge-escalated">{t('chat.escalated')}</span>
                       )}
                       {msg.knowledge_flagged && (
-                        <span className="badge badge-flagged">✦ Conocimiento nuevo detectado</span>
+                        <span className="badge badge-flagged">{t('chat.knowledgeFlagged')}</span>
                       )}
-                      {msg.tools_used && msg.tools_used.filter(t => t.startsWith('search_')).length > 0 && (
+                      {msg.tools_used && msg.tools_used.filter(tool => tool.startsWith('search_')).length > 0 && (
                         <span className="badge badge-domain">
-                          {msg.tools_used.find(t => t.startsWith('search_'))?.replace('search_', '')}
+                          {toolLabel(msg.tools_used.find(tool => tool.startsWith('search_')))}
                         </span>
                       )}
                     </div>
                     {msg.sources && msg.sources.length > 0 && (
-                      <details style={{ marginTop: 6, marginLeft: 32, fontSize: 12, color: 'var(--text-muted)' }}>
-                        <summary style={{ cursor: 'pointer' }}>
-                          Basado en {msg.sources.length} hecho(s)
-                        </summary>
-                        <ul style={{ marginTop: 4, paddingLeft: 16, lineHeight: 1.6 }}>
+                      <details className="chat-sources">
+                        <summary>{t('chat.viewSources', { count: msg.sources.length })}</summary>
+                        <ul>
                           {msg.sources.map((s, idx) => (
-                            <li key={idx} style={{ color: 'var(--text-secondary)' }}>{s.fact}</li>
+                            <li key={idx}>{s.fact}</li>
                           ))}
                         </ul>
                       </details>
                     )}
                   </div>
                 )}
-              </div>
+              </motion.div>
             ))}
           </div>
 
           {/* Typing indicator */}
           {loading && (
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginTop: '1rem' }}>
-              <div style={{
-                width: 24, height: 24, borderRadius: 6, flexShrink: 0,
-                background: 'rgba(212,168,83,0.15)', border: '1px solid rgba(212,168,83,0.2)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 10, fontWeight: 700, color: 'var(--accent)',
-              }}>S</div>
-              <div className="chat-bubble-assistant" style={{ padding: '12px 16px' }}>
-                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                  {[0, 1, 2].map(i => (
-                    <span key={i} style={{
-                      width: 6, height: 6, borderRadius: '50%',
-                      background: 'var(--text-muted)',
-                      display: 'inline-block',
-                      animation: 'pulse-dot 1.2s infinite',
-                      animationDelay: `${i * 0.2}s`,
-                    }} />
-                  ))}
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
-                    Segundo está pensando...
-                  </span>
-                </div>
-                {slowWarning && (
-                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-                    Está tardando más de lo normal. Puedes esperar o reintentar.
-                  </p>
-                )}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              style={{ marginTop: '1.25rem' }}
+            >
+              <div className="chat-bubble-assistant" style={{ padding: '14px 18px', display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+                <span className="chat-typing">
+                  <span className="chat-typing-dot" />
+                  <span className="chat-typing-dot" />
+                  <span className="chat-typing-dot" />
+                </span>
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  {t('chat.thinking')}
+                </span>
               </div>
-            </div>
+              {slowWarning && (
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
+                  {t('chat.slowWarning')}
+                </p>
+              )}
+            </motion.div>
           )}
+
           {failedMessage && !loading && (
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '0.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '0.75rem' }}>
               <button
                 onClick={handleRetry}
-                style={{
-                  background: 'var(--bg-card)', border: '1px solid var(--border)',
-                  color: 'var(--text-secondary)', borderRadius: 8, padding: '6px 14px',
-                  fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                }}
+                className="btn-secondary"
+                style={{ fontSize: 12, padding: '6px 14px' }}
               >
-                Reintentar pregunta
+                {t('chat.retry')}
               </button>
             </div>
           )}
           <div ref={bottomRef} />
         </div>
+
+        <AnimatePresence>
+          {hasNewMessage && !isAtBottom && (
+            <motion.button
+              className="chat-new-msg-chip"
+              onClick={jumpToBottom}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+            >
+              {t('chat.newMessage')}
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* Input */}
-      <div style={{
-        background: voiceState === 'recording' ? 'rgba(220,38,38,0.04)' : 'var(--bg-card)',
-        borderTop: voiceState === 'recording' ? '1px solid rgba(220,38,38,0.2)' : '1px solid var(--border)',
-        padding: '1rem',
-        transition: 'background 0.3s, border-color 0.3s',
-      }}>
-        <div style={{ maxWidth: 660, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+      {/* Input bar */}
+      <div
+        className={`chat-input-bar ${voiceState === 'recording' ? 'is-recording' : ''}`}
+        style={{
+          background: 'var(--bg-card)',
+          borderTop: '1px solid var(--border)',
+          padding: '0.85rem 1rem',
+          transition: 'background 0.3s, border-color 0.3s',
+        }}
+      >
+        {messages.length > 0 && input.length === 0 && !loading && voiceState === 'idle' && (
+          <div style={{ maxWidth: 680, margin: '0 auto 8px' }}>
+            <div className="chat-suggestions-bar">
+              {suggestions.map(q => (
+                <button
+                  key={q}
+                  onClick={() => { setInput(q); setTimeout(() => inputRef.current?.focus(), 30) }}
+                  className="chip-suggestion"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
-          {/* VoiceButton always mounted — handles its own idle/recording/transcribing UI */}
+        <div style={{ maxWidth: 680, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+
           <VoiceButton
             disabled={loading}
             onTranscript={(text) => {
               setMessages(prev => [...prev, { role: 'user', content: text }])
+              setIsAtBottom(true)
               setLoading(true)
               askAPI.ask(text, sessionId).then(({ data }) => {
                 setSessionId(data.session_id)
@@ -403,12 +534,14 @@ export default function EmployeeChat() {
                   confidence: data.confidence,
                   tools_used: data.tools_used || [],
                   knowledge_flagged: data.knowledge_flagged || false,
+                  sources: data.sources || [],
                 }])
-              }).catch(() => {
+              }).catch((err) => {
                 setMessages(prev => [...prev, {
                   role: 'assistant',
-                  content: 'Hubo un error al contactar a Segundo. Intenta de nuevo.',
-                  confidence: 'none',
+                  content: errorMessage(err),
+                  confidence: 'error',
+                  isError: true,
                 }])
               }).finally(() => {
                 setLoading(false)
@@ -418,7 +551,6 @@ export default function EmployeeChat() {
             onStateChange={setVoiceState}
           />
 
-          {/* Text input + send — only visible when idle */}
           {voiceState === 'idle' && (
             <form onSubmit={handleSend} role="search" style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1 }}>
               <input
@@ -427,25 +559,105 @@ export default function EmployeeChat() {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Escribe o usa el micrófono..."
+                placeholder={t('chat.inputPlaceholder')}
                 disabled={loading}
                 style={{ flex: 1 }}
                 autoFocus
               />
               <button
-                className="btn-primary"
+                className="chat-send-btn"
                 type="submit"
                 disabled={loading || !input.trim()}
-                style={{ width: 'auto', padding: '10px 18px', whiteSpace: 'nowrap' }}
-                aria-label="Enviar mensaje"
+                aria-label={t('chat.sendAria')}
               >
-                {loading ? '...' : '→'}
+                <span className="chat-send-label">{t('chat.sendLabel')}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                  <polyline points="12 5 19 12 12 19" />
+                </svg>
               </button>
             </form>
           )}
 
+          {voiceState === 'recording' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, paddingLeft: 8 }}>
+              <span className="recording-pulse" aria-hidden />
+              <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('chat.listening')}</span>
+            </div>
+          )}
+
+          {voiceState === 'transcribing' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, paddingLeft: 8 }}>
+              <span className="chat-typing-dot" />
+              <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('chat.transcribing')}</span>
+            </div>
+          )}
+
         </div>
       </div>
+
+      <AnimatePresence>
+        {showPlan && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setShowPlan(false)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0, 0, 0, 0.75)',
+              backdropFilter: 'blur(8px)',
+              zIndex: 1000,
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'center',
+              padding: '40px 20px',
+              overflowY: 'auto',
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.96, y: 10 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.96, y: 10 }}
+              transition={{ duration: 0.2 }}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                maxWidth: 980,
+                width: '100%',
+                background: '#0a0a0a',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 20,
+                padding: 24,
+                position: 'relative',
+              }}
+            >
+              <button
+                onClick={() => setShowPlan(false)}
+                aria-label="Close"
+                style={{
+                  position: 'absolute',
+                  top: 14,
+                  right: 14,
+                  width: 32,
+                  height: 32,
+                  borderRadius: '50%',
+                  border: 'none',
+                  background: 'rgba(255,255,255,0.06)',
+                  color: 'rgba(255,255,255,0.7)',
+                  fontSize: 18,
+                  cursor: 'pointer',
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+              <PricingPanel readOnly />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

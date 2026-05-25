@@ -168,12 +168,82 @@ def _build_mock_tool_response(tool_name: str, arguments: dict):
 
 
 # ---------------------------------------------------------------------------
+# Groq provider (OpenAI-compatible, hosted Llama 3.3 70B and others)
+# ---------------------------------------------------------------------------
+
+_groq_client = None
+
+
+def _get_groq_client():
+    global _groq_client
+    if _groq_client is None:
+        from openai import OpenAI
+        _groq_client = OpenAI(
+            api_key=settings.groq_api_key,
+            base_url="https://api.groq.com/openai/v1",
+        )
+    return _groq_client
+
+
+def _groq_complete(system: str, messages: list[dict], max_tokens: int = 1024) -> str:
+    client = _get_groq_client()
+    response = client.chat.completions.create(
+        model=settings.groq_model,
+        max_tokens=max_tokens,
+        messages=[{"role": "system", "content": system}] + messages,
+    )
+    return response.choices[0].message.content
+
+
+def _groq_complete_with_tools(
+    system: str,
+    messages: list[dict],
+    tools: list[dict],
+    max_tokens: int = 1024,
+):
+    """Uses Groq's native OpenAI-compatible tool calling."""
+    client = _get_groq_client()
+
+    openai_tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": t["name"],
+                "description": t["description"],
+                "parameters": t["input_schema"],
+            },
+        }
+        for t in tools
+    ]
+
+    response = client.chat.completions.create(
+        model=settings.groq_model,
+        max_tokens=max_tokens,
+        messages=[{"role": "system", "content": system}] + messages,
+        tools=openai_tools,
+        tool_choice="auto",
+    )
+
+    msg = response.choices[0].message
+    if msg.tool_calls:
+        return response
+
+    # Fallback: if the model answered in text instead of calling a tool, default to delegate
+    return _build_mock_tool_response(
+        "delegate_to_agents",
+        {"domains": ["general"]},
+    )
+
+
+# ---------------------------------------------------------------------------
 # Public API — provider-agnostic (used by all agents)
 # ---------------------------------------------------------------------------
 
 def complete(system: str, messages: list[dict], max_tokens: int = 1024) -> str:
     if settings.llm_provider == "claude":
         return _claude_complete(system, messages, max_tokens)
+    if settings.llm_provider == "groq":
+        return _groq_complete(system, messages, max_tokens)
     return _ollama_complete(system, messages, max_tokens)
 
 
@@ -185,4 +255,6 @@ def complete_with_tools(
 ):
     if settings.llm_provider == "claude":
         return _claude_complete_with_tools(system, messages, tools, max_tokens)
+    if settings.llm_provider == "groq":
+        return _groq_complete_with_tools(system, messages, tools, max_tokens)
     return _ollama_complete_with_tools(system, messages, tools, max_tokens)
