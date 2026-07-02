@@ -4,9 +4,10 @@ Sistema operativo visual y verbal. Cuando hay duda en una decisión de UI o copy
 
 ## Esencia
 
-- **Producto**: agente de IA institucional para PyMEs latinoamericanas (3-15 empleados).
-- **Promesa**: el conocimiento del dueño se vuelve un activo permanente del negocio.
-- **Tagline**: "El colega que nunca renuncia."
+- **Producto**: plataforma de equipos de agentes IA para empresas latinoamericanas — desde la ferretería de barrio hasta la startup de software. Cada empresa arma su roster de agentes con nombre, rol y persona; un agente manager organiza el equipo y contrata subagentes; los especialistas ejecutan tareas en paralelo y un agente revisor aprueba cada entrega antes de que llegue al dueño.
+- **Promesa**: el conocimiento del negocio deja de vivir en la cabeza del dueño y se convierte en un equipo que trabaja para la empresa — y se queda con ella.
+- **Tagline**: "El equipo que nunca renuncia."
+- **Evolución del nombre**: Segundo nació como "tu segundo al mando" (un solo colega). Hoy es tu equipo completo de agentes. El nombre se queda; el concepto crece: de un segundo a un equipo entero.
 - **Personalidad**: cálido pero profesional, español neutro sin voseo, sin jerga tech, latinoamericano sin estereotipos, confiable, humanista (no tech-bro).
 
 ---
@@ -104,13 +105,13 @@ DM Serif Display solo para display, h1 y momentos editoriales. DM Sans para todo
 - Logo aislado en splash, login, página 404.
 - Pantallas de onboarding tipo "bienvenida".
 - Hero de landing pública.
-- Estados de éxito significativos: "Hecho guardado, Segundo ya lo sabe" — el check va dorado.
+- Estados de éxito significativos: "Hecho guardado, tu equipo ya lo sabe" o "Misión completada" — el check va dorado.
 
 ### Dorado SÍ como acento (uso diario)
 - CTA primario único de la pantalla (un solo botón dorado por vista).
 - Indicador de selección/activo en navegación lateral.
-- Borde-izquierdo de la respuesta de Segundo en chat (4px gold-500).
-- Avatar de Segundo en chat.
+- Borde-izquierdo de la respuesta del agente en chat (4px gold-500).
+- Avatar del agente activo en chat.
 - Un número clave en dashboard, no todos.
 
 ### Dorado NO se usa
@@ -131,17 +132,17 @@ Las figuras son **metáforas del producto**, no decoración. Cada una tiene un s
 
 | Figura | Significado | Va en | No va en |
 |---|---|---|---|
-| **Cinta de Möbius** | Continuidad institucional, "el colega que nunca renuncia" | Landing pública (hero), splash inicial, "Sobre Segundo" | Dashboard, chat, formularios |
+| **Cinta de Möbius** | Continuidad institucional, "el equipo que nunca renuncia" | Landing pública (hero), splash inicial, "Sobre Segundo" | Dashboard, chat, formularios |
 | **Toro (donut)** | Circulación de conocimiento (pregunta entra, respuesta sale) | Onboarding del empleado, "cómo funciona" | Errores, configuración |
 | **Octaedro** | Hecho cristalizado, una unidad de conocimiento | Card de "hecho guardado", éxito al guardar, sección Conocimiento | Chat conversacional |
-| **Esfera mate** | Segundo presente, escuchando | Estado "Segundo está pensando", avatar grande de bienvenida | Notificaciones, listados |
+| **Esfera mate** | Un agente presente, escuchando o trabajando | Estado "el agente está pensando", avatar grande de bienvenida, misión en ejecución | Notificaciones, listados |
 
 **Reglas transversales:**
 - Render mate, no metálico brillante. Una sola luz cálida.
 - Paleta: neutros + un acento dorado máximo. Nunca multicolor.
 - Tamaño mínimo: 120px. Por debajo se ve sucia.
 - **Una figura 3D por pantalla**. Nunca dos protagonistas.
-- **Prohibido en**: tablas de datos, formularios densos, configuración técnica, errores críticos, billing.
+- **Prohibido en**: tablas de datos, formularios densos, tableros de tareas y timelines de misiones, configuración técnica, errores críticos, billing.
 
 ---
 
@@ -149,32 +150,42 @@ Las figuras son **metáforas del producto**, no decoración. Cada una tiene un s
 
 Cálido, directo, sin disculpas exageradas, sin jerga, sin emojis decorativos. **Tú** (no vos, no usted en producto), frases cortas, verbo activo.
 
-### 5 ejemplos de microcopy
+### Ejemplos de microcopy
 
 **Error de login**
 > Esos datos no coinciden. Revisa el correo y la contraseña, o recupera el acceso desde el enlace de abajo.
 
-**Estado vacío del dashboard del dueño**
-> Todavía no le has enseñado nada a Segundo.
+**Estado vacío de Equipo**
+> Tu equipo todavía no existe.
 >
-> Empieza por lo básico: horarios, dirección, qué hace cada persona del equipo. Mientras más sepa, mejor responde a tu gente.
+> Contrata a tu primer agente desde una plantilla o créalo desde cero. Dale un nombre, un rol y cuéntale cómo trabaja tu empresa.
 >
-> [Botón: Enseñar el primer hecho]
+> [Botón: Contratar el primer agente]
 
 **Bienvenida tras registro**
 > Bienvenida, María.
 >
-> Segundo ya está listo para aprender de tu negocio. Lo que le enseñes hoy, lo va a saber cualquier persona que entre a trabajar contigo mañana.
+> Tu equipo de agentes está listo para aprender de tu negocio. Lo que le enseñes hoy, lo va a saber cada agente — y cada persona — que trabaje contigo mañana.
+
+**Misión completada**
+> Misión completada.
+>
+> El equipo terminó "Auditar los precios del catálogo". El entregable te espera; cada tarea pasó por revisión antes de llegar a ti.
+
+**Tarea devuelta por el revisor**
+> El revisor devolvió esta tarea.
+>
+> El resultado no cumplía con lo pedido, así que el agente la está reintentando con las observaciones. No tienes que hacer nada todavía.
 
 **Notificación de pregunta escalada**
 > Tienes una pregunta sin responder.
 >
-> Carlos preguntó algo que Segundo todavía no sabe. Cuando le respondas, queda aprendido para siempre.
+> Carlos preguntó algo que tu equipo todavía no sabe. Cuando le respondas, queda aprendido para siempre.
 
 **Confirmación tras guardar un hecho**
-> Listo. Segundo ya lo sabe.
+> Listo. Tu equipo ya lo sabe.
 >
-> Cualquier persona del equipo que pregunte algo relacionado va a recibir esta respuesta.
+> Cualquier agente o persona del equipo que pregunte algo relacionado va a recibir esta respuesta.
 
 ---
 

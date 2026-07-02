@@ -407,6 +407,27 @@ export default function OwnerDashboard() {
             )}
           </button>
         ))}
+        {/* Nuevas secciones IA: Equipo y Misiones */}
+        <span
+          aria-hidden="true"
+          style={{ alignSelf: 'center', width: 1, height: 18, background: 'var(--border)', margin: '0 8px', flexShrink: 0 }}
+        />
+        <button
+          onClick={() => navigate('/team')}
+          className="tab-btn"
+          style={{ color: 'var(--gold-500)', fontWeight: 600 }}
+        >
+          <span aria-hidden="true" style={{ fontSize: 11 }}>✦</span>
+          {t('nav.team', 'Equipo IA')}
+        </button>
+        <button
+          onClick={() => navigate('/missions')}
+          className="tab-btn"
+          style={{ color: 'var(--gold-500)', fontWeight: 600 }}
+        >
+          <span aria-hidden="true" style={{ fontSize: 11 }}>✦</span>
+          {t('nav.missions', 'Misiones')}
+        </button>
         <motion.span
           className="tab-indicator"
           animate={{ left: indicator.left, width: indicator.width }}

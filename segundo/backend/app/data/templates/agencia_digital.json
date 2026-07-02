@@ -1,0 +1,26 @@
+{
+    "industry": "agencia_digital",
+    "name": "Agencia Digital",
+    "facts": [
+        {"text": "Todo proyecto nuevo inicia con un brief aprobado por el cliente; sin brief firmado no se agenda trabajo de producción", "category": "procesos", "domain": "clientes"},
+        {"text": "La reunión de kickoff con el cliente se agenda dentro de los 3 días hábiles siguientes a la firma de la propuesta", "category": "procesos", "domain": "clientes"},
+        {"text": "El diseño de logo e identidad básica cuesta desde $1.500.000 y un sitio web institucional desde $4.000.000", "category": "precios", "domain": "ventas"},
+        {"text": "El plan básico de gestión de redes sociales cuesta $1.200.000 mensuales e incluye 12 publicaciones al mes", "category": "precios", "domain": "ventas"},
+        {"text": "Las campañas de pauta digital se cobran al 15% del presupuesto invertido, con un mínimo de $500.000 mensuales", "category": "precios", "domain": "ventas"},
+        {"text": "Los trabajos fuera del alcance contratado se cobran a $150.000 por hora", "category": "precios", "domain": "ventas"},
+        {"text": "Cada entrega incluye hasta 2 rondas de correcciones; las rondas adicionales se cotizan aparte", "category": "procesos", "domain": "ventas"},
+        {"text": "El tiempo de entrega de un logo es de 10 días hábiles y el de un sitio web institucional de 4 a 6 semanas", "category": "procesos", "domain": "operaciones"},
+        {"text": "El calendario de contenidos de redes del mes siguiente se presenta al cliente el día 25 de cada mes para su aprobación", "category": "procesos", "domain": "clientes"},
+        {"text": "Las herramientas de trabajo son Figma para diseño, Asana para gestión de proyectos y Meta Business Suite y Google Ads para pauta", "category": "procesos", "domain": "operaciones"},
+        {"text": "Los reportes de resultados se envían a cada cliente en los primeros 5 días hábiles del mes", "category": "procesos", "domain": "clientes"},
+        {"text": "Los proyectos se facturan 50% de anticipo para iniciar y 50% contra entrega final", "category": "precios", "domain": "ventas"},
+        {"text": "Los fees mensuales se facturan los primeros 5 días del mes con plazo de pago de 15 días; la mora suspende la pauta activa", "category": "precios", "domain": "ventas"},
+        {"text": "Los clientes con retainer de más de 6 meses continuos reciben 10% de descuento sobre el fee mensual", "category": "precios", "domain": "clientes"},
+        {"text": "Los archivos editables y accesos finales se entregan solo después del pago total del proyecto", "category": "procesos", "domain": "legal"},
+        {"text": "Los cambios de alcance requieren cotización adicional aprobada por escrito antes de ejecutarse", "category": "procesos", "domain": "legal"},
+        {"text": "Las propuestas comerciales tienen una validez de 30 días calendario", "category": "precios", "domain": "ventas"},
+        {"text": "El horario de atención a clientes es de lunes a viernes de 9am a 6pm; las urgencias fuera de horario tienen recargo del 25%", "category": "horarios", "domain": "operaciones"},
+        {"text": "Cada cliente tiene un ejecutivo de cuenta asignado como único punto de contacto con la agencia", "category": "procesos", "domain": "clientes"},
+        {"text": "La fotografía de producto se subcontrata con un estudio aliado y requiere agendarse con 2 semanas de anticipación", "category": "proveedores", "domain": "operaciones"}
+    ]
+}

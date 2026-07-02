@@ -1,3 +1,4 @@
+import logging
 import os
 import secrets
 from datetime import datetime
@@ -7,6 +8,8 @@ from app.db.models import User, Business
 from app.core.security import hash_password, verify_password, create_access_token
 from fastapi import HTTPException, status
 
+logger = logging.getLogger(__name__)
+
 DEMO_OWNER_EMAIL = "demo@segundo.app"
 DEMO_OWNER_PASSWORD = os.getenv("DEMO_OWNER_PASSWORD", secrets.token_urlsafe(16))
 DEMO_EMPLOYEE_PHONE = "+5200000000000"
@@ -14,12 +17,12 @@ DEMO_EMPLOYEE_PASSWORD = os.getenv("DEMO_EMPLOYEE_PASSWORD", secrets.token_urlsa
 DEMO_BUSINESS_NAME = "Tienda Demo — Segundo"
 
 
-async def register_owner(business_name: str, name: str, email: str, password: str, db: AsyncSession):
+async def register_owner(business_name: str, name: str, email: str, password: str, db: AsyncSession, industry: str | None = None):
     existing = await db.execute(select(User).where(User.email == email))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    business = Business(name=business_name)
+    business = Business(name=business_name, industry=industry)
     db.add(business)
     await db.flush()
 
@@ -33,6 +36,17 @@ async def register_owner(business_name: str, name: str, email: str, password: st
     db.add(user)
     await db.commit()
     await db.refresh(user)
+
+    # Equipo semilla de agentes (v3) — import lazy para evitar ciclos de import.
+    # Si falla, el registro NO se rompe: el dueño puede usar POST /agents/seed.
+    try:
+        from app.services.team_service import create_seed_team
+        await create_seed_team(business.id, business.industry, user.id, db)
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        logger.warning("No se pudo crear el equipo semilla para el negocio %s: %s", business.id, e)
+
     return user, business
 
 
@@ -168,6 +182,22 @@ async def get_or_create_demo(role: str, db: AsyncSession):
     db.add(user)
     await db.commit()
     await db.refresh(user)
+
+    # Equipo semilla de agentes (v3) — import lazy para evitar ciclos de import.
+    # create_seed_team es idempotente: si el negocio demo ya tiene agentes
+    # activos, no crea duplicados. Si falla, la cuenta demo NO se rompe.
+    try:
+        from app.services.team_service import create_seed_team
+        industry = business.industry if business else None
+        await create_seed_team(business_id, industry, user.id, db)
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        logger.warning(
+            "No se pudo crear el equipo semilla para el negocio demo %s: %s",
+            business_id, e,
+        )
+
     return user, business
 
 

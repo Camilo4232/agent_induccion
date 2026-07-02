@@ -1,0 +1,28 @@
+{
+    "industry": "startup_software",
+    "name": "Startup de Software",
+    "facts": [
+        {"text": "El stack principal es backend en Python con FastAPI y frontend en React con TypeScript", "category": "procesos", "domain": "operaciones"},
+        {"text": "El código vive en GitHub: el repositorio 'core' contiene el backend y 'webapp' el frontend", "category": "procesos", "domain": "operaciones"},
+        {"text": "Los deploys a producción se hacen solo martes y jueves a través del pipeline de GitHub Actions", "category": "procesos", "domain": "operaciones"},
+        {"text": "Todo pull request requiere al menos una aprobación de otro desarrollador antes de hacer merge", "category": "procesos", "domain": "operaciones"},
+        {"text": "Los cambios que incluyen migraciones de base de datos deben ser revisados por el líder técnico antes del deploy", "category": "procesos", "domain": "operaciones"},
+        {"text": "La rotación de on-call es semanal y cambia los lunes; quien está de guardia recibe un bono adicional", "category": "procesos", "domain": "operaciones"},
+        {"text": "Los incidentes críticos de producción se reportan en el canal #incidentes de Slack y se escalan al CTO si duran más de 30 minutos", "category": "procesos", "domain": "operaciones"},
+        {"text": "Después de cada incidente crítico se escribe un postmortem dentro de las 48 horas siguientes, sin buscar culpables", "category": "procesos", "domain": "operaciones"},
+        {"text": "El equipo trabaja 100% remoto, con una reunión presencial de todo el equipo una vez por trimestre", "category": "procesos", "domain": "operaciones"},
+        {"text": "El horario núcleo de colaboración es de 10am a 3pm hora de Bogotá; fuera de ese bloque cada quien organiza su jornada", "category": "horarios", "domain": "operaciones"},
+        {"text": "Las vacaciones son 20 días hábiles al año y se solicitan con al menos 2 semanas de anticipación por el sistema de RRHH", "category": "procesos", "domain": "operaciones"},
+        {"text": "El proceso de contratación técnica tiene 3 etapas: filtro inicial con la persona de talento, prueba técnica y entrevista final de sistema y cultura", "category": "procesos", "domain": "operaciones"},
+        {"text": "La prueba técnica de candidatos no debe tomar más de 4 horas y todo candidato recibe respuesta en máximo 5 días hábiles", "category": "procesos", "domain": "operaciones"},
+        {"text": "El producto tiene tres planes: Starter a USD 29 por mes, Pro a USD 99 por mes y Enterprise con cotización personalizada", "category": "precios", "domain": "ventas"},
+        {"text": "El pago anual tiene 20% de descuento sobre el precio mensual en todos los planes", "category": "precios", "domain": "ventas"},
+        {"text": "La prueba gratuita dura 14 días y no requiere tarjeta de crédito", "category": "precios", "domain": "ventas"},
+        {"text": "Los clientes Enterprise tienen un gerente de cuenta dedicado y SLA de respuesta de soporte de 4 horas hábiles", "category": "clientes", "domain": "clientes"},
+        {"text": "Los tres clientes más grandes concentran cerca del 40% de los ingresos y cualquier cambio que los afecte se avisa con anticipación al gerente de cuenta", "category": "clientes", "domain": "clientes"},
+        {"text": "Las herramientas internas son Slack para comunicación, Linear para tickets y Notion para documentación", "category": "procesos", "domain": "operaciones"},
+        {"text": "Los accesos y credenciales se gestionan con 1Password; está prohibido compartir contraseñas por chat o correo", "category": "procesos", "domain": "operaciones"},
+        {"text": "Existe garantía de devolución del dinero durante los primeros 30 días de suscripción", "category": "procesos", "domain": "legal"},
+        {"text": "Las facturas a clientes se emiten en los primeros 5 días hábiles de cada mes", "category": "procesos", "domain": "operaciones"}
+    ]
+}

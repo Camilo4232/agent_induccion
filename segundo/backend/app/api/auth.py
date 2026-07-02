@@ -52,6 +52,7 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
         email=body.email,
         password=body.password,
         db=db,
+        industry=body.industry,
     )
     refresh_value = await _issue_refresh_token(user.id, db)
     await db.commit()

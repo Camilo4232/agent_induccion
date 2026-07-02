@@ -15,6 +15,8 @@ from app.api.analytics import router as analytics_router
 from app.api.templates import router as templates_router
 from app.api.bulk import router as bulk_router
 from app.api.billing import router as billing_router
+from app.api.agents import router as agents_router
+from app.api.missions import router as missions_router
 
 # Configure structured logging
 logging.basicConfig(
@@ -25,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 limiter = Limiter(key_func=get_remote_address)
 
-app = FastAPI(title="Segundo API", version="2.1.0")
+app = FastAPI(title="Segundo API", version="3.0.0")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -62,6 +64,18 @@ app.include_router(analytics_router)
 app.include_router(templates_router)
 app.include_router(bulk_router)
 app.include_router(billing_router)
+app.include_router(agents_router)
+app.include_router(missions_router)
+
+
+@app.on_event("startup")
+async def recover_missions_on_startup():
+    # Misiones que quedaron corriendo cuando el proceso murió → failed
+    from app.services.mission_engine import recover_orphaned_missions
+    try:
+        await recover_orphaned_missions()
+    except Exception:
+        logger.exception("No se pudieron recuperar misiones huérfanas al arrancar")
 
 
 @app.post("/admin/clear-cache")
@@ -77,7 +91,7 @@ async def health():
     pool = engine.pool
     return {
         "status": "ok",
-        "version": "2.1.0",
+        "version": "3.0.0",
         "db_pool_size": pool.size(),
         "db_pool_checkedout": pool.checkedout(),
     }

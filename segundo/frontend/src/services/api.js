@@ -144,4 +144,21 @@ export const billingAPI = {
   subscribe: (plan) => api.post('/billing/subscribe', { plan }),
 }
 
+export const agentsAPI = {
+  list: (includeArchived) => api.get('/agents', { params: includeArchived ? { include_archived: true } : {} }),
+  templates: (industry) => api.get('/agents/templates', { params: industry ? { industry } : {} }),
+  create: (data) => api.post('/agents', data),
+  update: (id, data) => api.patch(`/agents/${id}`, data),
+  archive: (id) => api.delete(`/agents/${id}`),
+  seed: () => api.post('/agents/seed'),
+  chat: (id, message, history) => api.post(`/agents/${id}/chat`, { message, history: history || undefined }),
+}
+
+export const missionsAPI = {
+  create: (objective, title) => api.post('/missions', { objective, title: title || undefined }),
+  list: () => api.get('/missions'),
+  get: (id) => api.get(`/missions/${id}`),
+  cancel: (id) => api.post(`/missions/${id}/cancel`),
+}
+
 export default api

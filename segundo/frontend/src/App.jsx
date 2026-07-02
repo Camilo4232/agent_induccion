@@ -6,6 +6,9 @@ import OwnerDashboard from './pages/OwnerDashboard'
 import EmployeeChat from './pages/EmployeeChat'
 import ChangePassword from './pages/ChangePassword'
 import Pricing from './pages/Pricing'
+import Team from './pages/Team'
+import Missions from './pages/Missions'
+import MissionDetail from './pages/MissionDetail'
 
 function PrivateRoute({ children, role }) {
   const { token, user } = useStore()
@@ -28,6 +31,30 @@ export default function App() {
           element={
             <PrivateRoute role="owner">
               <OwnerDashboard />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/team"
+          element={
+            <PrivateRoute role="owner">
+              <Team />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/missions"
+          element={
+            <PrivateRoute role="owner">
+              <Missions />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/missions/:id"
+          element={
+            <PrivateRoute role="owner">
+              <MissionDetail />
             </PrivateRoute>
           }
         />

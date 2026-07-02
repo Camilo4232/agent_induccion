@@ -1,0 +1,26 @@
+{
+    "industry": "ecommerce",
+    "name": "Tienda Online (E-commerce)",
+    "facts": [
+        {"text": "El envío es gratis en compras superiores a $150.000; por debajo de ese monto el costo se calcula al finalizar la compra", "category": "precios", "domain": "ventas"},
+        {"text": "Los envíos nacionales se hacen con Servientrega y Coordinadora, con entrega de 2 a 5 días hábiles en ciudades principales", "category": "proveedores", "domain": "operaciones"},
+        {"text": "Los pedidos confirmados antes de las 2pm se despachan el mismo día hábil", "category": "procesos", "domain": "operaciones"},
+        {"text": "Las devoluciones se aceptan hasta 30 días calendario después de la entrega, con el producto sin uso y con etiquetas originales", "category": "procesos", "domain": "legal"},
+        {"text": "El primer cambio de talla es gratis; en cambios posteriores el cliente asume el costo del envío", "category": "procesos", "domain": "legal"},
+        {"text": "El cliente puede ejercer el derecho de retracto dentro de los 5 días hábiles siguientes a la entrega, según la ley de comercio electrónico", "category": "procesos", "domain": "legal"},
+        {"text": "Las pasarelas de pago son Wompi y Mercado Pago; se aceptan tarjetas, PSE y Nequi", "category": "procesos", "domain": "ventas"},
+        {"text": "Los pagos por PSE pueden tardar hasta 24 horas en verse reflejados; el pedido se despacha solo con el pago aprobado", "category": "procesos", "domain": "ventas"},
+        {"text": "El pago contra entrega está disponible solo en ciudades principales y tiene un recargo de $8.000", "category": "precios", "domain": "ventas"},
+        {"text": "Todos los precios publicados incluyen IVA", "category": "precios", "domain": "ventas"},
+        {"text": "El catálogo se actualiza los lunes; todo producto nuevo se carga con mínimo 3 fotos y descripción optimizada para buscadores", "category": "procesos", "domain": "operaciones"},
+        {"text": "El proveedor principal de ropa entrega mercancía cada 15 días; se hace reorden cuando quedan menos de 10 unidades por talla", "category": "proveedores", "domain": "operaciones"},
+        {"text": "El inventario se sincroniza automáticamente con Shopify y el conteo físico se hace el primer sábado de cada mes", "category": "procesos", "domain": "operaciones"},
+        {"text": "La atención al cliente es por WhatsApp y correo, de lunes a sábado de 8am a 8pm, con tiempo máximo de respuesta de 2 horas", "category": "horarios", "domain": "operaciones"},
+        {"text": "Las quejas por producto defectuoso se resuelven con cambio o reembolso en máximo 3 días hábiles", "category": "procesos", "domain": "clientes"},
+        {"text": "Los reembolsos se procesan al mismo medio de pago en un plazo de 5 a 10 días hábiles", "category": "procesos", "domain": "legal"},
+        {"text": "Los clientes con más de 5 compras entran al programa de fidelidad y reciben 10% de descuento permanente", "category": "precios", "domain": "clientes"},
+        {"text": "El cupón BIENVENIDO10 da 10% de descuento en la primera compra y solo puede usarse una vez por cliente", "category": "precios", "domain": "ventas"},
+        {"text": "Los pedidos mayoristas de más de 20 unidades se cotizan por WhatsApp con precios especiales", "category": "precios", "domain": "ventas"},
+        {"text": "En temporada alta (noviembre y diciembre) los tiempos de entrega pueden extenderse hasta 8 días hábiles", "category": "procesos", "domain": "operaciones"}
+    ]
+}

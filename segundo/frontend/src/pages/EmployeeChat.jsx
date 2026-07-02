@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import useStore from '../store/useStore'
-import { askAPI, briefingAPI } from '../services/api'
+import { askAPI, briefingAPI, agentsAPI } from '../services/api'
 import VoiceButton from '../components/VoiceButton'
 import LangSwitcher from '../components/LangSwitcher'
 import PricingPanel from '../components/PricingPanel'
@@ -37,11 +37,18 @@ export default function EmployeeChat() {
   const [voiceState, setVoiceState] = useState('idle')
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [hasNewMessage, setHasNewMessage] = useState(false)
+  const [agents, setAgents] = useState([])
+  const [selectedAgentId, setSelectedAgentId] = useState('')
   const scrollRef = useRef(null)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const { user, logout } = useStore()
   const navigate = useNavigate()
+
+  const selectedAgent = useMemo(
+    () => agents.find(a => String(a.id) === selectedAgentId) || null,
+    [agents, selectedAgentId]
+  )
 
   // Sugerencias estables por sesión, traducidas según el idioma actual.
   const seed = useMemo(() => Date.now(), [])
@@ -84,6 +91,41 @@ export default function EmployeeChat() {
 
   useEffect(() => { loadSessions() }, [])
 
+  // Carga discreta del roster de agentes; si falla o está vacío, el selector no aparece.
+  useEffect(() => {
+    agentsAPI.list()
+      .then(({ data }) => {
+        const active = (Array.isArray(data) ? data : []).filter(a => a.status === 'active')
+        setAgents(active)
+      })
+      .catch(() => setAgents([]))
+  }, [])
+
+  // Últimos ~6 turnos del hilo actual, en el shape {role, content} del contrato.
+  function buildHistory(msgs) {
+    return msgs
+      .filter(m => (m.role === 'user' || m.role === 'assistant') && !m.isError)
+      .slice(-6)
+      .map(m => ({ role: m.role, content: m.content }))
+  }
+
+  function handleAgentChange(e) {
+    const id = e.target.value
+    if (id === selectedAgentId) return
+    const agent = agents.find(a => String(a.id) === id)
+    setSelectedAgentId(id)
+    if (messages.length > 0) {
+      const divider = { role: 'divider', content: agent ? agent.name : 'Segundo' }
+      setMessages(prev => {
+        // Si el último elemento ya es un divisor (cambios seguidos sin enviar), se reemplaza.
+        if (prev.length > 0 && prev[prev.length - 1].role === 'divider') {
+          return [...prev.slice(0, -1), divider]
+        }
+        return [...prev, divider]
+      })
+    }
+  }
+
   async function handleLoadBriefing() {
     setLoadingBriefing(true)
     try {
@@ -110,16 +152,27 @@ export default function EmployeeChat() {
     const slowTimer = setTimeout(() => setSlowWarning(true), 30000)
 
     try {
-      const { data } = await askAPI.ask(question, sessionId)
-      setSessionId(data.session_id)
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: data.response,
-        confidence: data.confidence,
-        tools_used: data.tools_used || [],
-        knowledge_flagged: data.knowledge_flagged || false,
-        sources: data.sources || [],
-      }])
+      if (selectedAgent) {
+        // Chat directo con un agente del equipo; no toca la sesión de Segundo.
+        const { data } = await agentsAPI.chat(selectedAgent.id, question, buildHistory(messages))
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: data.response,
+          agentName: data.agent_name || selectedAgent.name,
+          sources: data.sources || [],
+        }])
+      } else {
+        const { data } = await askAPI.ask(question, sessionId)
+        setSessionId(data.session_id)
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: data.response,
+          confidence: data.confidence,
+          tools_used: data.tools_used || [],
+          knowledge_flagged: data.knowledge_flagged || false,
+          sources: data.sources || [],
+        }])
+      }
     } catch (err) {
       const msg = errorMessage(err)
       setFailedMessage({ question, error: msg })
@@ -155,6 +208,7 @@ export default function EmployeeChat() {
 
   async function selectSession(id) {
     setSessionId(id)
+    setSelectedAgentId('')
     setMessages([])
     try {
       const { data } = await askAPI.getHistory(id)
@@ -190,8 +244,8 @@ export default function EmployeeChat() {
 
   function shouldShowSegundoMark(idx) {
     const msg = messages[idx]
-    if (msg.role !== 'assistant') return false
-    return !messages.slice(0, idx).some(m => m.role === 'assistant')
+    if (msg.role !== 'assistant' || msg.agentName) return false
+    return !messages.slice(0, idx).some(m => m.role === 'assistant' && !m.agentName)
   }
 
   return (
@@ -205,6 +259,32 @@ export default function EmployeeChat() {
           <span className="wordmark-tag">{t('chat.tag')}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          {agents.length > 0 && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)' }}>
+              {t('chat.talkTo', 'Hablar con:')}
+              <select
+                value={selectedAgentId}
+                onChange={handleAgentChange}
+                aria-label={t('chat.talkToAria', 'Elegir con quién hablar')}
+                style={{
+                  fontSize: 12,
+                  color: 'var(--text-primary)',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 999,
+                  padding: '4px 10px',
+                  cursor: 'pointer',
+                  maxWidth: 180,
+                  outline: 'none',
+                }}
+              >
+                <option value="">{t('chat.fullTeam', 'Segundo (equipo completo)')}</option>
+                {agents.map(a => (
+                  <option key={a.id} value={String(a.id)}>{a.name}</option>
+                ))}
+              </select>
+            </label>
+          )}
           <LangSwitcher compact />
           <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{user?.email}</span>
           <button
@@ -409,13 +489,23 @@ export default function EmployeeChat() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.22 }}
               >
-                {msg.role === 'user' ? (
+                {msg.role === 'divider' ? (
+                  <div role="separator" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0.25rem 0' }}>
+                    <span aria-hidden style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
+                      {t('chat.nowTalkingWith', 'Ahora hablas con {{name}}', { name: msg.content })}
+                    </span>
+                    <span aria-hidden style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                  </div>
+                ) : msg.role === 'user' ? (
                   <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <div className="chat-bubble-user">{msg.content}</div>
                   </div>
                 ) : (
                   <div>
-                    {shouldShowSegundoMark(i) && (
+                    {msg.agentName ? (
+                      <span className="chat-segundo-mark">{msg.agentName}</span>
+                    ) : shouldShowSegundoMark(i) && (
                       <span className="chat-segundo-mark">{t('chat.segundoReplies')}</span>
                     )}
                     <div
@@ -543,7 +633,19 @@ export default function EmployeeChat() {
               setMessages(prev => [...prev, { role: 'user', content: text }])
               setIsAtBottom(true)
               setLoading(true)
-              askAPI.ask(text, sessionId).then(({ data }) => {
+              const request = selectedAgent
+                ? agentsAPI.chat(selectedAgent.id, text, buildHistory(messages))
+                : askAPI.ask(text, sessionId)
+              request.then(({ data }) => {
+                if (selectedAgent) {
+                  setMessages(prev => [...prev, {
+                    role: 'assistant',
+                    content: data.response,
+                    agentName: data.agent_name || selectedAgent.name,
+                    sources: data.sources || [],
+                  }])
+                  return
+                }
                 setSessionId(data.session_id)
                 setMessages(prev => [...prev, {
                   role: 'assistant',

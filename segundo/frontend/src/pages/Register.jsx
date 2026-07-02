@@ -7,7 +7,7 @@ import LangSwitcher from '../components/LangSwitcher'
 
 export default function Register() {
   const { t } = useTranslation()
-  const [form, setForm] = useState({ business_name: '', name: '', email: '', password: '' })
+  const [form, setForm] = useState({ business_name: '', industry: '', name: '', email: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -21,7 +21,8 @@ export default function Register() {
     setError('')
     setLoading(true)
     try {
-      const { data } = await authAPI.register(form)
+      const payload = { ...form, industry: form.industry || undefined }
+      const { data } = await authAPI.register(payload)
       setAuth(
         { email: form.email, role: data.role, business_id: data.business_id, id: data.user_id },
         data.access_token,
@@ -128,6 +129,26 @@ export default function Register() {
                 required
                 autoFocus
               />
+            </div>
+            <div className="field-group">
+              <label className="field-label">{t('auth.register.industryLabel', '¿A qué se dedica tu empresa?')}</label>
+              <select
+                className="field-input"
+                value={form.industry}
+                onChange={update('industry')}
+                style={{ appearance: 'auto', cursor: 'pointer' }}
+              >
+                <option value="">{t('auth.register.industryPlaceholder', 'Selecciona una industria (opcional)')}</option>
+                <option value="startup_software">{t('industries.startup_software', 'Tecnología / Software')}</option>
+                <option value="agencia_digital">{t('industries.agencia_digital', 'Agencia digital / Marketing')}</option>
+                <option value="ecommerce">{t('industries.ecommerce', 'E-commerce / Tienda online')}</option>
+                <option value="servicios">{t('industries.servicios', 'Servicios profesionales')}</option>
+                <option value="salud">{t('industries.salud', 'Salud / Bienestar')}</option>
+                <option value="ferreteria">{t('industries.ferreteria', 'Ferretería')}</option>
+                <option value="restaurante">{t('industries.restaurante', 'Restaurante / Comida')}</option>
+                <option value="tienda_ropa">{t('industries.tienda_ropa', 'Tienda de ropa')}</option>
+                <option value="otro">{t('industries.otro', 'Otro')}</option>
+              </select>
             </div>
             <div className="field-group">
               <label className="field-label">{t('auth.register.yourNameLabel')}</label>

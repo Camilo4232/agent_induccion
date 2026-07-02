@@ -1,6 +1,6 @@
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from uuid import UUID
 
 from app.services.embeddings import generate_embedding, generate_embedding_cached
@@ -16,11 +16,24 @@ def _has_real_embeddings() -> bool:
     return bool(settings.voyage_api_key)
 
 
+def _domain_filter_clause(domain: str | list[str] | None, params: dict) -> str:
+    """Builds the SQL domain filter clause and fills the bound params.
+    Accepts a single domain, a list of domains, or None (no filter).
+    """
+    if isinstance(domain, (list, tuple)):
+        params["domains"] = list(domain)
+        return "AND domain IN :domains"
+    if domain:
+        params["domain"] = domain
+        return "AND domain = :domain"
+    return ""
+
+
 async def _search_by_domain(
     question: str,
     business_id: UUID,
     db: AsyncSession,
-    domain: str | None = None,
+    domain: str | list[str] | None = None,
     role: str = "employee",  # "owner" sees all, "employee" sees only public
 ) -> list[dict]:
     if _has_real_embeddings():
@@ -33,7 +46,7 @@ async def _vector_search(
     question: str,
     business_id: UUID,
     db: AsyncSession,
-    domain: str | None = None,
+    domain: str | list[str] | None = None,
     role: str = "employee",
 ) -> list[dict]:
     embedding = generate_embedding_cached(question)
@@ -43,44 +56,29 @@ async def _vector_search(
     max_distance = 1.0 - SIMILARITY_THRESHOLD
     sensitivity_filter = "" if role == "owner" else "AND (sensitivity = 'public' OR sensitivity IS NULL)"
 
-    if domain:
-        sql = text(f"""
-            SELECT id, processed_fact, category, domain,
-                   1 - (embedding_vec <=> {emb_lit}) AS similarity
-            FROM knowledge_entries
-            WHERE business_id = :business_id
-              AND is_active = true
-              AND embedding_vec IS NOT NULL
-              AND domain = :domain
-              AND (embedding_vec <=> {emb_lit}) < :max_distance
-              {sensitivity_filter}
-            ORDER BY embedding_vec <=> {emb_lit}
-            LIMIT :top_k
-        """)
-        result = await db.execute(sql, {
-            "business_id": str(business_id),
-            "domain": domain,
-            "top_k": TOP_K,
-            "max_distance": max_distance,
-        })
-    else:
-        sql = text(f"""
-            SELECT id, processed_fact, category, domain,
-                   1 - (embedding_vec <=> {emb_lit}) AS similarity
-            FROM knowledge_entries
-            WHERE business_id = :business_id
-              AND is_active = true
-              AND embedding_vec IS NOT NULL
-              AND (embedding_vec <=> {emb_lit}) < :max_distance
-              {sensitivity_filter}
-            ORDER BY embedding_vec <=> {emb_lit}
-            LIMIT :top_k
-        """)
-        result = await db.execute(sql, {
-            "business_id": str(business_id),
-            "top_k": TOP_K,
-            "max_distance": max_distance,
-        })
+    params: dict = {
+        "business_id": str(business_id),
+        "top_k": TOP_K,
+        "max_distance": max_distance,
+    }
+    domain_filter = _domain_filter_clause(domain, params)
+
+    sql = text(f"""
+        SELECT id, processed_fact, category, domain,
+               1 - (embedding_vec <=> {emb_lit}) AS similarity
+        FROM knowledge_entries
+        WHERE business_id = :business_id
+          AND is_active = true
+          AND embedding_vec IS NOT NULL
+          {domain_filter}
+          AND (embedding_vec <=> {emb_lit}) < :max_distance
+          {sensitivity_filter}
+        ORDER BY embedding_vec <=> {emb_lit}
+        LIMIT :top_k
+    """)
+    if "domains" in params:
+        sql = sql.bindparams(bindparam("domains", expanding=True))
+    result = await db.execute(sql, params)
 
     rows = result.fetchall()
     entries = [
@@ -100,7 +98,7 @@ async def _vector_search(
 async def _fetch_all(
     business_id: UUID,
     db: AsyncSession,
-    domain: str | None = None,
+    domain: str | list[str] | None = None,
     role: str = "employee",
 ) -> list[dict]:
     """Return active knowledge entries filtered by sensitivity.
@@ -108,34 +106,26 @@ async def _fetch_all(
     """
     sensitivity_filter = "" if role == "owner" else "AND (sensitivity = 'public' OR sensitivity IS NULL)"
 
-    if domain:
-        sql = text(f"""
-            SELECT id, processed_fact, category, domain, 1.0 AS similarity
-            FROM knowledge_entries
-            WHERE business_id = :business_id
-              AND is_active = true
-              AND domain = :domain
-              {sensitivity_filter}
-            ORDER BY created_at ASC
-            LIMIT 30
-        """)
-        result = await db.execute(sql, {"business_id": str(business_id), "domain": domain})
-        rows = result.fetchall()
+    params: dict = {"business_id": str(business_id)}
+    domain_filter = _domain_filter_clause(domain, params)
 
-        # If domain-specific search is empty, fall back to all entries
-        if not rows:
-            sql = text(f"""
-                SELECT id, processed_fact, category, domain, 1.0 AS similarity
-                FROM knowledge_entries
-                WHERE business_id = :business_id
-                  AND is_active = true
-                  {sensitivity_filter}
-                ORDER BY created_at ASC
-                LIMIT 30
-            """)
-            result = await db.execute(sql, {"business_id": str(business_id)})
-            rows = result.fetchall()
-    else:
+    sql = text(f"""
+        SELECT id, processed_fact, category, domain, 1.0 AS similarity
+        FROM knowledge_entries
+        WHERE business_id = :business_id
+          AND is_active = true
+          {domain_filter}
+          {sensitivity_filter}
+        ORDER BY created_at ASC
+        LIMIT 30
+    """)
+    if "domains" in params:
+        sql = sql.bindparams(bindparam("domains", expanding=True))
+    result = await db.execute(sql, params)
+    rows = result.fetchall()
+
+    # If domain-specific search is empty, fall back to all entries
+    if domain_filter and not rows:
         sql = text(f"""
             SELECT id, processed_fact, category, domain, 1.0 AS similarity
             FROM knowledge_entries
@@ -160,17 +150,40 @@ async def _fetch_all(
     ]
 
 
+async def search_by_scopes(
+    question: str,
+    business_id: UUID,
+    db: AsyncSession,
+    scopes: list[str] | None = None,
+    role: str = "employee",
+) -> list[dict]:
+    """Generic RAG search over one or more domain scopes.
+
+    - scopes None/empty, or containing "general" → no domain filter.
+    - single scope → same as searching that domain.
+    - multiple scopes → one query filtering domain IN scopes.
+    """
+    clean_scopes = [s for s in (scopes or []) if s]
+    if not clean_scopes or "general" in clean_scopes:
+        domain: str | list[str] | None = None
+    elif len(clean_scopes) == 1:
+        domain = clean_scopes[0]
+    else:
+        domain = clean_scopes
+    return await _search_by_domain(question, business_id, db, domain=domain, role=role)
+
+
 async def search_ventas(question: str, business_id: UUID, db: AsyncSession, role: str = "employee") -> list[dict]:
-    return await _search_by_domain(question, business_id, db, domain="ventas", role=role)
+    return await search_by_scopes(question, business_id, db, scopes=["ventas"], role=role)
 
 
 async def search_operaciones(question: str, business_id: UUID, db: AsyncSession, role: str = "employee") -> list[dict]:
-    return await _search_by_domain(question, business_id, db, domain="operaciones", role=role)
+    return await search_by_scopes(question, business_id, db, scopes=["operaciones"], role=role)
 
 
 async def search_clientes(question: str, business_id: UUID, db: AsyncSession, role: str = "employee") -> list[dict]:
-    return await _search_by_domain(question, business_id, db, domain="clientes", role=role)
+    return await search_by_scopes(question, business_id, db, scopes=["clientes"], role=role)
 
 
 async def search_general(question: str, business_id: UUID, db: AsyncSession, role: str = "employee") -> list[dict]:
-    return await _search_by_domain(question, business_id, db, domain=None, role=role)
+    return await search_by_scopes(question, business_id, db, scopes=None, role=role)

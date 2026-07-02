@@ -204,3 +204,102 @@ class KnowledgeVersion(Base):
     __table_args__ = (
         Index("idx_version_entry", "entry_id"),
     )
+
+
+# ---------------------------------------------------------------------------
+# Equipos de agentes (v3) — roster, misiones, tareas y timeline
+# ---------------------------------------------------------------------------
+
+class Agent(Base):
+    __tablename__ = "agents"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id"), nullable=False)
+    template_key = Column(String(50), nullable=True)
+    name = Column(Text, nullable=False)
+    role_title = Column(Text, nullable=False)
+    # Descripción de personalidad/experiencia del agente
+    persona = Column(Text)
+    system_prompt = Column(Text, nullable=True)
+    domain_scopes = Column(ARRAY(String), default=list)
+    can_hire = Column(Boolean, default=False)
+    is_reviewer = Column(Boolean, default=False)
+    # Subagente contratado por otro agente (jerarquía de 1 nivel)
+    parent_agent_id = Column(UUID(as_uuid=True), ForeignKey("agents.id"), nullable=True)
+    status = Column(String(20), default="active")
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    __table_args__ = (
+        CheckConstraint("status IN ('active', 'archived')", name="agents_status_check"),
+        Index("idx_agents_business_status", "business_id", "status"),
+    )
+
+
+class Mission(Base):
+    __tablename__ = "missions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id = Column(UUID(as_uuid=True), ForeignKey("businesses.id"), nullable=False)
+    title = Column(Text, nullable=False)
+    objective = Column(Text, nullable=False)
+    status = Column(String(20), default="planning")
+    manager_agent_id = Column(UUID(as_uuid=True), ForeignKey("agents.id"), nullable=True)
+    result_summary = Column(Text, nullable=True)
+    error = Column(Text, nullable=True)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('planning', 'running', 'reviewing', 'completed', 'failed', 'cancelled')",
+            name="missions_status_check",
+        ),
+        Index("idx_missions_business_status", "business_id", "status"),
+    )
+
+
+class MissionTask(Base):
+    __tablename__ = "mission_tasks"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    mission_id = Column(UUID(as_uuid=True), ForeignKey("missions.id"), nullable=False)
+    agent_id = Column(UUID(as_uuid=True), ForeignKey("agents.id"), nullable=True)
+    parent_task_id = Column(UUID(as_uuid=True), ForeignKey("mission_tasks.id"), nullable=True)
+    title = Column(Text, nullable=False)
+    description = Column(Text, nullable=False)
+    status = Column(String(20), default="pending")
+    output = Column(Text, nullable=True)
+    review_notes = Column(Text, nullable=True)
+    reviewer_agent_id = Column(UUID(as_uuid=True), ForeignKey("agents.id"), nullable=True)
+    attempts = Column(Integer, default=0)
+    order_index = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'in_progress', 'review', 'rejected', 'approved', 'failed')",
+            name="mission_tasks_status_check",
+        ),
+        Index("idx_mission_tasks_mission", "mission_id"),
+    )
+
+
+class TaskEvent(Base):
+    __tablename__ = "task_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    mission_id = Column(UUID(as_uuid=True), ForeignKey("missions.id"), nullable=False)
+    task_id = Column(UUID(as_uuid=True), ForeignKey("mission_tasks.id"), nullable=True)
+    agent_id = Column(UUID(as_uuid=True), ForeignKey("agents.id"), nullable=True)
+    type = Column(String(40), nullable=False)
+    # JSON string con detalles del evento
+    payload = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_task_events_mission_created", "mission_id", "created_at"),
+    )

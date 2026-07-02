@@ -1,6 +1,6 @@
-# Segundo — Agente de Onboarding Institucional
+# Segundo — Tu Equipo de Agentes IA
 
-Agente interno para PyMEs latinoamericanas. El dueño le enseña cómo funciona el negocio y los empleados nuevos preguntan por chat.
+Plataforma donde cualquier empresa latinoamericana — desde una ferretería hasta una startup de software — arma su equipo de agentes IA: un manager que organiza el equipo y contrata subagentes, especialistas que ejecutan tareas en paralelo y un revisor que aprueba cada entrega. La base de conocimiento y el chat para empleados se conservan como el sustrato sobre el que trabajan los agentes.
 
 ## Stack
 

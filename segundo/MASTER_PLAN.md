@@ -12,13 +12,13 @@
 
 El roster de agentes deja de estar hardcodeado y pasa a ser configurable por empresa.
 
-- [ ] **1.1** Migración Alembic `006`: tablas `agents`, `missions`, `mission_tasks`, `task_events` + modelos SQLAlchemy en `app/db/models.py` + schemas Pydantic en `app/db/schemas.py`.
-- [ ] **1.2** Catálogo de plantillas de agentes en `app/data/agent_templates/` (JSON): manager/contratador (persona "100 años de experiencia armando equipos"), revisor QA, RRHH, reclutador, ventas, operaciones, clientes, soporte técnico, marketing, finanzas — cada una con `industries[]`, `domain_scopes[]`, `can_hire`, `is_reviewer`.
-- [ ] **1.3** `app/api/agents.py`: `GET/POST/PATCH/DELETE /agents`, `GET /agents/templates` (filtrable por industria). Solo `owner` puede contratar/editar/archivar. Aislamiento multi-tenant por `business_id` del JWT.
-- [ ] **1.4** Equipo semilla al registrar negocio: manager + revisor + los 4 especialistas de dominio actuales como agentes en DB. Endpoint `POST /agents/seed` para negocios existentes.
-- [ ] **1.5** Refactor `search_tools.py`: función genérica `search_by_scopes(scopes, ...)`; las funciones por dominio pasan a ser wrappers.
-- [ ] **1.6** Refactor `sub_agents.py` y `orchestrator.py`: los agentes del chat se cargan desde DB (roster del negocio) en vez del diccionario `SUB_AGENTS`. El chat existente se comporta igual que antes.
-- [ ] **1.7** Migrar DB en Supabase + probar por `curl`: crear agente, listar plantillas, seed, y una pregunta al chat que verifique que nada se rompió.
+- [x] **1.1** Migración Alembic `006`: tablas `agents`, `missions`, `mission_tasks`, `task_events` + modelos SQLAlchemy en `app/db/models.py` + schemas Pydantic en `app/db/schemas.py`.
+- [x] **1.2** Catálogo de plantillas de agentes en `app/data/agent_templates/` (JSON): manager/contratador (persona "100 años de experiencia armando equipos"), revisor QA, RRHH, reclutador, ventas, operaciones, clientes, soporte técnico, marketing, finanzas — cada una con `industries[]`, `domain_scopes[]`, `can_hire`, `is_reviewer`.
+- [x] **1.3** `app/api/agents.py`: `GET/POST/PATCH/DELETE /agents`, `GET /agents/templates` (filtrable por industria). Solo `owner` puede contratar/editar/archivar. Aislamiento multi-tenant por `business_id` del JWT.
+- [x] **1.4** Equipo semilla al registrar negocio: manager + revisor + los 4 especialistas de dominio actuales como agentes en DB. Endpoint `POST /agents/seed` para negocios existentes.
+- [x] **1.5** Refactor `search_tools.py`: función genérica `search_by_scopes(scopes, ...)`; las funciones por dominio pasan a ser wrappers.
+- [x] **1.6** Refactor `sub_agents.py` y `orchestrator.py`: los agentes del chat se cargan desde DB (roster del negocio) en vez del diccionario `SUB_AGENTS`. El chat existente se comporta igual que antes.
+- [x] **1.7** Migrar DB en Supabase + probar por `curl`: crear agente, listar plantillas, seed, y una pregunta al chat que verifique que nada se rompió.
 
 **Criterios de terminado:** migración aplicada; CRUD de agentes probado por curl; el chat de empleados responde igual que antes del refactor; un negocio no puede ver agentes de otro.
 
@@ -28,14 +28,14 @@ El roster de agentes deja de estar hardcodeado y pasa a ser configurable por emp
 
 El corazón de v3: lanzar un objetivo y que un equipo de agentes lo resuelva.
 
-- [ ] **2.1** `app/services/mission_engine.py` — **planificación**: el agente manager recibe objetivo + roster + catálogo, y vía tool use (a) selecciona agentes existentes, (b) contrata subagentes desde plantillas (filas en `agents` con `parent_agent_id`), (c) descompone la misión en 3–7 tareas (`mission_tasks`).
-- [ ] **2.2** **Ejecución paralela**: `asyncio.gather` sobre tareas; cada agente corre con persona + RAG (`search_by_scopes`) + herramientas (`search_knowledge`, `flag_new_knowledge`, `escalate_to_owner`). Timeout 60s/tarea. Límites: máx. 5 subagentes y 7 tareas por misión.
-- [ ] **2.3** **Ciclo de revisión**: el agente revisor evalúa cada output → `{approved, feedback}`. Rechazo → reintento con feedback inyectado (máx. 2). Agotados → tarea `failed` sin tumbar la misión.
-- [ ] **2.4** **Síntesis y cierre**: el manager compone `result_summary`; notificación al dueño vía sistema existente; estados finales `completed`/`failed`.
-- [ ] **2.5** Timeline: registrar `task_events` en cada transición (misión creada, equipo contratado, tarea iniciada, output, revisión, reintento, cierre).
-- [ ] **2.6** `app/api/missions.py`: `POST /missions` (crea y lanza en background con `asyncio.create_task`), `GET /missions`, `GET /missions/{id}` (tareas + eventos), `POST /missions/{id}/cancel`. Al arrancar el backend, misiones huérfanas en `running` → `failed`.
-- [ ] **2.7** Sanitizar outputs de agentes antes de re-inyectarlos en prompts de revisión/síntesis (mitigar prompt injection).
-- [ ] **2.8** Prueba E2E por `curl`: lanzar una misión real (ej. "prepara el plan de contratación de un vendedor"), verificar contratación de subagentes, paralelo, revisión con al menos un rechazo simulado, y entregable final.
+- [x] **2.1** `app/services/mission_engine.py` — **planificación**: el agente manager recibe objetivo + roster + catálogo, y vía tool use (a) selecciona agentes existentes, (b) contrata subagentes desde plantillas (filas en `agents` con `parent_agent_id`), (c) descompone la misión en 3–7 tareas (`mission_tasks`).
+- [x] **2.2** **Ejecución paralela**: `asyncio.gather` sobre tareas; cada agente corre con persona + RAG (`search_by_scopes`) + herramientas (`search_knowledge`, `flag_new_knowledge`, `escalate_to_owner`). Timeout 60s/tarea. Límites: máx. 5 subagentes y 7 tareas por misión.
+- [x] **2.3** **Ciclo de revisión**: el agente revisor evalúa cada output → `{approved, feedback}`. Rechazo → reintento con feedback inyectado (máx. 2). Agotados → tarea `failed` sin tumbar la misión.
+- [x] **2.4** **Síntesis y cierre**: el manager compone `result_summary`; notificación al dueño vía sistema existente; estados finales `completed`/`failed`.
+- [x] **2.5** Timeline: registrar `task_events` en cada transición (misión creada, equipo contratado, tarea iniciada, output, revisión, reintento, cierre).
+- [x] **2.6** `app/api/missions.py`: `POST /missions` (crea y lanza en background con `asyncio.create_task`), `GET /missions`, `GET /missions/{id}` (tareas + eventos), `POST /missions/{id}/cancel`. Al arrancar el backend, misiones huérfanas en `running` → `failed`.
+- [x] **2.7** Sanitizar outputs de agentes antes de re-inyectarlos en prompts de revisión/síntesis (mitigar prompt injection).
+- [x] **2.8** Prueba E2E por `curl`: lanzar una misión real (ej. "prepara el plan de contratación de un vendedor"), verificar contratación de subagentes, paralelo, revisión con al menos un rechazo simulado, y entregable final.
 
 **Criterios de terminado:** una misión completa corre de punta a punta por curl; el timeline registra todos los eventos; una misión con tarea fallida termina en estado coherente; cancelación funciona.
 
@@ -43,12 +43,12 @@ El corazón de v3: lanzar un objetivo y que un equipo de agentes lo resuelva.
 
 ## Fase 3 — Frontend: equipo y misiones
 
-- [ ] **3.1** Navegación nueva: sidebar con **Inicio · Equipo · Misiones · Conocimiento · Chat** + rutas en `App.jsx`. El dashboard actual se reorganiza bajo "Inicio" y "Conocimiento".
-- [ ] **3.2** `pages/Team.jsx`: roster en tarjetas (nombre, rol, persona, dominios), modal de contratación (plantillas filtradas por industria + creación custom), editar/archivar, vista de subagentes contratados por agente (árbol).
-- [ ] **3.3** `pages/Missions.jsx`: lanzar misión (objetivo en texto libre) + lista con estados.
-- [ ] **3.4** `pages/MissionDetail.jsx`: tablero de tareas en vivo (polling 2–3s), timeline de eventos, output y revisión por tarea, entregable final destacado.
-- [ ] **3.5** Chat con agente individual: selector de agente en el chat existente → `POST /agents/{id}/chat`.
-- [ ] **3.6** Store (Zustand slices para agents/missions), cliente API (`services/api.js`) e i18n es/en/pt para todas las vistas nuevas (español neutro).
+- [x] **3.1** Navegación nueva: sidebar con **Inicio · Equipo · Misiones · Conocimiento · Chat** + rutas en `App.jsx`. El dashboard actual se reorganiza bajo "Inicio" y "Conocimiento".
+- [x] **3.2** `pages/Team.jsx`: roster en tarjetas (nombre, rol, persona, dominios), modal de contratación (plantillas filtradas por industria + creación custom), editar/archivar, vista de subagentes contratados por agente (árbol).
+- [x] **3.3** `pages/Missions.jsx`: lanzar misión (objetivo en texto libre) + lista con estados.
+- [x] **3.4** `pages/MissionDetail.jsx`: tablero de tareas en vivo (polling 2–3s), timeline de eventos, output y revisión por tarea, entregable final destacado.
+- [x] **3.5** Chat con agente individual: selector de agente en el chat existente → `POST /agents/{id}/chat`.
+- [x] **3.6** Store (Zustand slices para agents/missions), cliente API (`services/api.js`) e i18n es/en/pt para todas las vistas nuevas (español neutro).
 
 **Criterios de terminado:** desde el navegador se puede contratar un agente, lanzar una misión, ver las tareas moverse en vivo y leer el entregable; todo traducido en los 3 idiomas.
 
@@ -56,10 +56,10 @@ El corazón de v3: lanzar un objetivo y que un equipo de agentes lo resuelva.
 
 ## Fase 4 — Generalización: de PyMEs manuales a toda empresa
 
-- [ ] **4.1** Registro con industrias ampliadas: tecnología/software, agencia digital, e-commerce, servicios profesionales, salud + las actuales (ferretería, restaurante, tienda de ropa).
-- [ ] **4.2** Plantillas de negocio nuevas en `app/data/templates/` para empresas tech (ej. `startup_software.json`, `agencia_digital.json`) con conocimiento inicial + equipo semilla acorde (reclutador técnico, soporte, ventas B2B).
-- [ ] **4.3** Onboarding actualizado: al registrarse, se propone el equipo de agentes según la industria elegida y el dueño confirma con un clic.
-- [ ] **4.4** Reposicionamiento de copy: de "agente de onboarding institucional" a "tu equipo de agentes" en README, i18n, login/registro y `docs/BRAND.md`/`docs/MARKETING.md`.
+- [x] **4.1** Registro con industrias ampliadas: tecnología/software, agencia digital, e-commerce, servicios profesionales, salud + las actuales (ferretería, restaurante, tienda de ropa).
+- [x] **4.2** Plantillas de negocio nuevas en `app/data/templates/` para empresas tech (ej. `startup_software.json`, `agencia_digital.json`) con conocimiento inicial + equipo semilla acorde (reclutador técnico, soporte, ventas B2B).
+- [x] **4.3** Onboarding actualizado: al registrarse, se propone el equipo de agentes según la industria elegida y el dueño confirma con un clic.
+- [x] **4.4** Reposicionamiento de copy: de "agente de onboarding institucional" a "tu equipo de agentes" en README, i18n, login/registro y `docs/BRAND.md`/`docs/MARKETING.md`.
 
 **Criterios de terminado:** una empresa de software puede registrarse, recibir un equipo relevante y lanzar una misión útil en su contexto sin tocar configuración manual.
 
@@ -78,7 +78,7 @@ El corazón de v3: lanzar un objetivo y que un equipo de agentes lo resuelva.
 
 ## Fase 6 — Despliegue y validación final
 
-- [ ] **6.1** Migración aplicada en Supabase producción.
+- [x] **6.1** Migración aplicada en Supabase producción.
 - [ ] **6.2** Deploy del frontend en Vercel.
 - [ ] **6.3** Smoke test E2E en producción: registro → equipo semilla → contratar agente → misión → revisión → entregable → notificación.
 - [ ] **6.4** Documentación final: `README.md`, `docs/README.md` (endpoints nuevos), `INSTALL.md`.
