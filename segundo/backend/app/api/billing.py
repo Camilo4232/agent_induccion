@@ -21,7 +21,15 @@ PLANS = {
         "price_cop": 79900,
         "price_brl": 99,
         "max_employees": 5,
-        "features": ["1 agente general", "200 preguntas/mes", "Solo texto"],
+        "max_agents": 6,
+        "max_missions_per_month": 10,
+        "features": [
+            "1 agente general",
+            "200 preguntas/mes",
+            "Solo texto",
+            "Hasta 6 agentes IA",
+            "10 misiones al mes",
+        ],
     },
     "negocio": {
         "name": "Negocio",
@@ -29,7 +37,16 @@ PLANS = {
         "price_cop": 199900,
         "price_brl": 249,
         "max_employees": 15,
-        "features": ["4 agentes", "Preguntas ilimitadas", "Voz", "Analítica"],
+        "max_agents": 15,
+        "max_missions_per_month": 50,
+        "features": [
+            "4 agentes",
+            "Preguntas ilimitadas",
+            "Voz",
+            "Analítica",
+            "Hasta 15 agentes IA",
+            "50 misiones al mes",
+        ],
         "highlight": True,
     },
     "patron": {
@@ -38,14 +55,38 @@ PLANS = {
         "price_cop": 479900,
         "price_brl": 599,
         "max_employees": 30,
+        "max_agents": 40,
+        "max_missions_per_month": 200,
         "features": [
             "Multi-sucursal",
             "Onboarding 1-a-1",
             "Plantillas por industria",
             "Soporte prioritario",
+            "Hasta 40 agentes IA",
+            "200 misiones al mes",
         ],
     },
 }
+
+# Límites para negocios sin plan de pago (plan None, "trial" o desconocido)
+TRIAL_LIMITS = {"max_agents": 8, "max_missions_per_month": 5}
+
+
+def get_plan_limits(plan: str | None) -> dict:
+    """Límites de uso del plan; TRIAL_LIMITS si el negocio no tiene un plan de pago."""
+    if plan and plan in PLANS:
+        return {
+            "max_agents": PLANS[plan]["max_agents"],
+            "max_missions_per_month": PLANS[plan]["max_missions_per_month"],
+        }
+    return dict(TRIAL_LIMITS)
+
+
+def get_plan_display_name(plan: str | None) -> str:
+    """Nombre visible del plan para mensajes al usuario."""
+    if plan and plan in PLANS:
+        return PLANS[plan]["name"]
+    return "Prueba gratuita"
 
 
 class PlanResponse(BaseModel):

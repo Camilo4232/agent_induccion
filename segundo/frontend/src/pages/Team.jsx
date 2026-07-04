@@ -940,7 +940,8 @@ function ChatPanel({ agent, onClose }) {
     if (!text || sending) return
     const history = messages
       .filter(m => !m.isError)
-      .map(m => ({ role: m.role, content: m.content }))
+      .slice(-20)
+      .map(m => ({ role: m.role, content: (m.content || '').slice(0, 4000) }))
     setInput('')
     setMessages(prev => [...prev, { role: 'user', content: text }])
     setSending(true)

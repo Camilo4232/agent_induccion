@@ -3,18 +3,25 @@ API de misiones — Segundo v3.
 
 Crear/lanzar misiones en background, listarlas, ver el detalle (tareas +
 timeline + equipo involucrado) y cancelarlas. Multi-tenant estricto por
-business_id del token; solo el dueño puede lanzar o cancelar misiones.
+business_id del token; solo el dueño puede ver, lanzar o cancelar misiones
+(V3-1: los entregables se generan con RAG de rol owner e incluyen conocimiento
+confidencial que los empleados no deben leer).
 """
 import asyncio
 import logging
+from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+from app.api.billing import get_plan_display_name, get_plan_limits
 from app.db.session import get_db
-from app.db.models import Agent, Mission, MissionTask, TaskEvent
+from app.db.models import Agent, Business, Mission, MissionTask, TaskEvent
 from app.db.schemas import (
     AgentResponse,
     MissionCreate,
@@ -23,7 +30,7 @@ from app.db.schemas import (
     MissionTaskResponse,
     TaskEventResponse,
 )
-from app.core.security import get_current_user, require_owner
+from app.core.security import require_owner
 from app.services.mission_engine import (
     ACTIVE_MISSION_STATUSES,
     _add_event,
@@ -31,6 +38,9 @@ from app.services.mission_engine import (
 )
 
 logger = logging.getLogger(__name__)
+
+limiter = Limiter(key_func=get_remote_address)
+
 router = APIRouter(prefix="/missions", tags=["missions"])
 
 # Referencias fuertes a las tareas en background (evita que el GC las cancele)
@@ -72,7 +82,9 @@ async def _get_business_mission(
 # ---------------------------------------------------------------------------
 
 @router.post("", response_model=MissionResponse, status_code=201)
+@limiter.limit("10/minute")
 async def create_mission(
+    request: Request,
     body: MissionCreate,
     current_user: dict = Depends(require_owner),
     db: AsyncSession = Depends(get_db),
@@ -80,6 +92,39 @@ async def create_mission(
     """Crea la misión y la lanza en background (el frontend hace polling)."""
     business_id = UUID(current_user["business_id"])
     user_id = UUID(current_user["sub"])
+
+    # Límite de misiones por mes calendario (UTC) según el plan del negocio.
+    # FOR UPDATE sobre el negocio: serializa creaciones concurrentes para que
+    # el conteo y la inserción sean atómicos (V3-9); se libera en el commit.
+    business_result = await db.execute(
+        select(Business).where(Business.id == business_id).with_for_update()
+    )
+    business = business_result.scalar_one_or_none()
+    limits = get_plan_limits(business.plan if business else None)
+
+    month_start = datetime.now(timezone.utc).replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    )
+    count_result = await db.execute(
+        select(func.count())
+        .select_from(Mission)
+        .where(
+            Mission.business_id == business_id,
+            Mission.created_at >= month_start,
+        )
+    )
+    missions_this_month = int(count_result.scalar() or 0)
+    if missions_this_month >= limits["max_missions_per_month"]:
+        plan_name = get_plan_display_name(business.plan if business else None)
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Tu plan actual ({plan_name}) permite hasta "
+                f"{limits['max_missions_per_month']} misiones al mes y ya "
+                "alcanzaste el límite de este mes. Mejora tu plan para lanzar "
+                "más misiones."
+            ),
+        )
 
     mission = Mission(
         business_id=business_id,
@@ -105,7 +150,7 @@ async def create_mission(
 
 @router.get("", response_model=list[MissionResponse])
 async def list_missions(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_owner),
     db: AsyncSession = Depends(get_db),
 ):
     business_id = UUID(current_user["business_id"])
@@ -120,7 +165,7 @@ async def list_missions(
 @router.get("/{mission_id}", response_model=MissionDetailResponse)
 async def get_mission(
     mission_id: UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_owner),
     db: AsyncSession = Depends(get_db),
 ):
     """Detalle de la misión: tareas (con agente resuelto), timeline y equipo."""

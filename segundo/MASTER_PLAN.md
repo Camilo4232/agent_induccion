@@ -67,10 +67,10 @@ El corazón de v3: lanzar un objetivo y que un equipo de agentes lo resuelva.
 
 ## Fase 5 — Límites, métricas y calidad
 
-- [ ] **5.1** Límites por plan en `billing.py` (nº de agentes activos, misiones/mes) + enforcement en los endpoints con mensajes claros de upgrade.
-- [ ] **5.2** Analytics de misiones en `analytics.py`: misiones por mes, tasa de aprobación de tareas, agentes más usados, tiempo promedio.
-- [ ] **5.3** Tests automatizados: unit del motor de misiones con LLM mockeado (planificación, paralelo, revisión, reintentos, límites) + integration de `/agents` y `/missions` incluyendo aislamiento multi-tenant.
-- [ ] **5.4** Revisión de seguridad: multi-tenant en todas las queries nuevas, rate limits en `/missions`, sanitización de outputs, permisos owner/employee en agentes y misiones. Actualizar `docs/seguridad/SECURITY.md`.
+- [x] **5.1** Límites por plan en `billing.py` (nº de agentes activos, misiones/mes) + enforcement en los endpoints con mensajes claros de upgrade.
+- [x] **5.2** Analytics de misiones en `analytics.py`: misiones por mes, tasa de aprobación de tareas, agentes más usados, tiempo promedio.
+- [x] **5.3** Tests automatizados: unit del motor de misiones con LLM mockeado (planificación, paralelo, revisión, reintentos, límites) + integration de `/agents` y `/missions` incluyendo aislamiento multi-tenant.
+- [x] **5.4** Revisión de seguridad: multi-tenant en todas las queries nuevas, rate limits en `/missions`, sanitización de outputs, permisos owner/employee en agentes y misiones. Actualizar `docs/seguridad/SECURITY.md`. (Revisión adversarial ejecutada: V3-1..V3-5 y V3-7..V3-9 + V3-11 corregidos; V3-6 y V3-10 aplazados como bloqueantes/config de launch — ver SECURITY.md.)
 
 **Criterios de terminado:** suite de tests en verde; límites de plan verificados por curl; checklist de seguridad documentado.
 

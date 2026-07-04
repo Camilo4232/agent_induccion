@@ -7,7 +7,8 @@ from datetime import datetime, timedelta
 
 from app.db.session import get_db
 from app.db.models import (
-    ChatMessage, ChatSession, KnowledgeEntry, UnansweredQuestion, User
+    Agent, ChatMessage, ChatSession, KnowledgeEntry, Mission, MissionTask,
+    UnansweredQuestion, User
 )
 from app.core.security import require_owner
 
@@ -136,4 +137,114 @@ async def knowledge_usage(
             {"id": str(e.id), "fact": e.processed_fact, "category": e.category, "created_at": e.created_at.isoformat()}
             for e in never_used.scalars().all()
         ],
+    }
+
+
+def _last_months(n: int, now: datetime) -> list[str]:
+    """Devuelve las claves 'YYYY-MM' de los últimos n meses, incluyendo el actual."""
+    months = []
+    year, month = now.year, now.month
+    for _ in range(n):
+        months.append(f"{year:04d}-{month:02d}")
+        month -= 1
+        if month == 0:
+            month = 12
+            year -= 1
+    return list(reversed(months))
+
+
+@router.get("/missions")
+async def missions_analytics(
+    current_user: dict = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    business_id = UUID(current_user["business_id"])
+    now = datetime.utcnow()
+
+    # --- Misiones por mes (últimos 6 meses, incluyendo el actual) ---
+    months = _last_months(6, now)
+    first_year, first_month = (int(p) for p in months[0].split("-"))
+    window_start = datetime(first_year, first_month, 1)
+
+    month_expr = func.to_char(Mission.created_at, "YYYY-MM")
+    q_months = await db.execute(
+        select(month_expr, func.count(Mission.id))
+        .where(
+            Mission.business_id == business_id,
+            Mission.created_at >= window_start,
+        )
+        .group_by(month_expr)
+    )
+    counts_by_month = {row[0]: row[1] for row in q_months.all()}
+    missions_by_month = [
+        {"month": m, "count": counts_by_month.get(m, 0)} for m in months
+    ]
+
+    # --- Misiones por estado ---
+    q_status = await db.execute(
+        select(Mission.status, func.count(Mission.id))
+        .where(Mission.business_id == business_id)
+        .group_by(Mission.status)
+    )
+    missions_by_status = {row[0]: row[1] for row in q_status.all()}
+
+    # --- Tasa de aprobación de tareas (approved / (approved + failed)) ---
+    q_tasks = await db.execute(
+        select(
+            func.count(MissionTask.id).filter(MissionTask.status == "approved"),
+            func.count(MissionTask.id).filter(
+                MissionTask.status.in_(["approved", "failed"])
+            ),
+        )
+        .join(Mission, MissionTask.mission_id == Mission.id)
+        .where(Mission.business_id == business_id)
+    )
+    approved_count, terminal_count = q_tasks.one()
+    task_approval_rate = (
+        round(approved_count / terminal_count, 2) if terminal_count else None
+    )
+
+    # --- Top 5 agentes por tareas aprobadas ---
+    approved_tasks = func.count(MissionTask.id).label("tasks_approved")
+    q_top = await db.execute(
+        select(Agent.id, Agent.name, approved_tasks)
+        .join(MissionTask, MissionTask.agent_id == Agent.id)
+        .join(Mission, MissionTask.mission_id == Mission.id)
+        .where(
+            Mission.business_id == business_id,
+            Agent.business_id == business_id,
+            MissionTask.status == "approved",
+        )
+        .group_by(Agent.id, Agent.name)
+        .order_by(approved_tasks.desc())
+        .limit(5)
+    )
+    top_agents = [
+        {"agent_id": str(row[0]), "name": row[1], "tasks_approved": row[2]}
+        for row in q_top.all()
+    ]
+
+    # --- Duración promedio de misiones terminadas (segundos) ---
+    q_duration = await db.execute(
+        select(
+            func.avg(
+                func.extract("epoch", Mission.finished_at - Mission.started_at)
+            )
+        ).where(
+            Mission.business_id == business_id,
+            Mission.started_at.isnot(None),
+            Mission.finished_at.isnot(None),
+        )
+    )
+    avg_duration = q_duration.scalar()
+    avg_mission_duration_seconds = (
+        round(float(avg_duration), 1) if avg_duration is not None else None
+    )
+
+    return {
+        "missions_by_month": missions_by_month,
+        "missions_by_status": missions_by_status,
+        "task_approval_rate": task_approval_rate,
+        "top_agents": top_agents,
+        "avg_mission_duration_seconds": avg_mission_duration_seconds,
     }

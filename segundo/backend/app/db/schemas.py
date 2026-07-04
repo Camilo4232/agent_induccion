@@ -241,13 +241,15 @@ class AgentTemplateResponse(BaseModel):
 
 # Chat directo con un agente del roster
 class AgentChatHistoryMessage(BaseModel):
-    role: str
-    content: str
+    role: str = Field(..., max_length=20)
+    content: str = Field(..., max_length=4000)
 
 
 class AgentChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
-    history: Optional[List[AgentChatHistoryMessage]] = None
+    # V3-4: tope de tamaño del body — el endpoint solo usa los últimos
+    # CHAT_HISTORY_LIMIT mensajes; el frontend envía como máximo 20.
+    history: Optional[List[AgentChatHistoryMessage]] = Field(None, max_length=50)
 
 
 class AgentChatSource(BaseModel):
