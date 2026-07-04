@@ -78,5 +78,6 @@ pytest                        # suite completa — integración contra la DB del
 
 ## Deploy
 
-- **Frontend**: Vercel (`frontend/vercel.json` ya trae el rewrite de SPA). Configurar `VITE_API_URL` con la URL pública del backend.
-- **Backend**: requiere un **host persistente** (Render, Fly.io, VPS...) — el motor de misiones corre tareas `asyncio` en background que un runtime serverless mataría. Antes de producción, revisar los bloqueantes de launch en [`docs/seguridad/SECURITY.md`](docs/seguridad/SECURITY.md).
+- **Backend — Render**: el `render.yaml` en la raíz del repo es un Blueprint listo. En [dashboard.render.com](https://dashboard.render.com) → New → Blueprint → conectar este repo, y completar en el dashboard las variables marcadas (`DATABASE_URL`, `GROQ_API_KEY`, `VOYAGE_API_KEY`, `CORS_ORIGINS`). Requiere host persistente — el motor de misiones corre tareas `asyncio` en background que un runtime serverless mataría. Mantener **un solo worker** mientras el rate limiter viva en memoria (V3-10).
+- **Frontend — Vercel**: `frontend/vercel.json` ya trae el rewrite de SPA. Configurar `VITE_API_URL` con la URL pública del backend en Render.
+- Antes de producción, revisar los **bloqueantes de launch** en [`docs/seguridad/SECURITY.md`](docs/seguridad/SECURITY.md) (billing mock V3-6, `debug_code` de forgot-password).
