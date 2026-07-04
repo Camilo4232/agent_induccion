@@ -66,3 +66,17 @@ CORS_ORIGINS=http://localhost:5173
 - `GET /health` — status del servicio
 - `GET /docs` — Swagger interactivo
 - `POST /auth/demo` body `{"role":"owner"}` — login sin registrarse para probar
+
+## Tests
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest -m "not integration"   # unitarios (rápidos, sin red)
+pytest                        # suite completa — integración contra la DB del .env
+```
+
+## Deploy
+
+- **Frontend**: Vercel (`frontend/vercel.json` ya trae el rewrite de SPA). Configurar `VITE_API_URL` con la URL pública del backend.
+- **Backend**: requiere un **host persistente** (Render, Fly.io, VPS...) — el motor de misiones corre tareas `asyncio` en background que un runtime serverless mataría. Antes de producción, revisar los bloqueantes de launch en [`docs/seguridad/SECURITY.md`](docs/seguridad/SECURITY.md).

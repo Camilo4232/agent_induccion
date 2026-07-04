@@ -1,10 +1,10 @@
-# Segundo — Agente de Onboarding Institucional
+# Segundo — Tu Equipo de Agentes IA
 
 ## Stack
 - **Backend**: FastAPI + SQLAlchemy + pgvector + Anthropic SDK
 - **Frontend**: React 18 + Vite + Tailwind CSS + Zustand
 - **DB**: PostgreSQL 15 + pgvector (Supabase)
-- **Deploy**: Railway (backend) · Vercel (frontend)
+- **Deploy**: Vercel (frontend) · backend en host persistente — **no serverless**: el motor de misiones ejecuta tareas `asyncio` en background que un runtime serverless mataría
 
 ---
 
@@ -72,6 +72,25 @@ npm run dev
 | POST | `/unanswered/{id}/resolve` | Owner | Resolver + guardar respuesta |
 | POST | `/invite` | Owner | Invitar empleado |
 
+### Equipo de agentes (v3)
+
+| Método | Endpoint | Rol | Descripción |
+|---|---|---|---|
+| GET | `/agents` | Ambos | Roster del negocio (empleados no ven `system_prompt`) |
+| GET | `/agents/templates` | Ambos | Catálogo de plantillas, filtrable por `?industry=` |
+| POST | `/agents/seed` | Owner | Crear equipo semilla (idempotente) |
+| POST | `/agents` | Owner | Contratar agente (plantilla o custom) — límite por plan |
+| GET | `/agents/{id}` | Ambos | Detalle de un agente |
+| PATCH | `/agents/{id}` | Owner | Editar/archivar/reactivar (reactivar chequea límite) |
+| DELETE | `/agents/{id}` | Owner | Archivar (borrado suave) |
+| POST | `/agents/{id}/chat` | Ambos | Chat directo con un agente (rate limit 10/min por usuario) |
+| POST | `/missions` | Owner | Crear y lanzar misión en background — límite mensual por plan |
+| GET | `/missions` | Owner | Listar misiones |
+| GET | `/missions/{id}` | Owner | Detalle: tareas + timeline + equipo |
+| POST | `/missions/{id}/cancel` | Owner | Cancelar misión en curso |
+| GET | `/analytics/missions` | Owner | Misiones/mes, tasa de aprobación, top agentes, duración |
+| GET | `/billing/plans` | Público | Planes con `max_agents` y `max_missions_per_month` |
+
 Docs interactivos: `http://localhost:8000/docs`
 
 ---
@@ -114,4 +133,25 @@ npm run dev
         ├── Búsqueda semántica top-5 (cosine > 0.75)
         ├── Response Agent (Claude con contexto)
         └── Si confidence=none → guarda en unanswered_questions
+
+POST /missions  (motor de misiones v3 — app/services/mission_engine.py)
+  └── Manager (agente can_hire del roster)
+        ├── Planifica: selecciona agentes, contrata subagentes (máx. 5),
+        │   descompone en 3–7 tareas (mission_tasks)
+        ├── Ejecución en paralelo (asyncio.gather, timeout 60s/tarea)
+        │     └── Cada agente corre con persona + RAG (search_by_scopes)
+        ├── Revisor (is_reviewer) aprueba/rechaza cada output
+        │     └── Rechazo → reintento con feedback (máx. 2 intentos)
+        └── Síntesis del manager → result_summary + notificación al dueño
+```
+
+---
+
+## Tests
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest -m "not integration"   # unitarios (motor, plantillas, schemas, billing)
+pytest                        # suite completa — integración contra la DB real (.env)
 ```

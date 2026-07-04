@@ -79,9 +79,9 @@ El corazón de v3: lanzar un objetivo y que un equipo de agentes lo resuelva.
 ## Fase 6 — Despliegue y validación final
 
 - [x] **6.1** Migración aplicada en Supabase producción.
-- [ ] **6.2** Deploy del frontend en Vercel.
-- [ ] **6.3** Smoke test E2E en producción: registro → equipo semilla → contratar agente → misión → revisión → entregable → notificación.
-- [ ] **6.4** Documentación final: `README.md`, `docs/README.md` (endpoints nuevos), `INSTALL.md`.
+- [ ] **6.2** Deploy del frontend en Vercel. (Preparado: `frontend/vercel.json` + `VITE_API_URL`; falta autenticar Vercel y la URL pública del backend.)
+- [ ] **6.3** Smoke test E2E en producción: registro → equipo semilla → contratar agente → misión → revisión → entregable → notificación. (Bloqueado por hosting del backend: requiere host persistente, no serverless; ver bloqueantes de launch en SECURITY.md.)
+- [x] **6.4** Documentación final: `README.md`, `docs/README.md` (endpoints nuevos), `INSTALL.md`.
 
 **Criterios de terminado:** flujo completo funcionando en producción; documentación al día.
 

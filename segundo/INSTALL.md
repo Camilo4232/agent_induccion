@@ -425,6 +425,15 @@ Después:
 - Si cambió `frontend/package.json`: en `frontend/` → `npm install`.
 - Si hay nuevas migraciones: en `backend/` con venv activo → `alembic upgrade head`.
 
+### Correr los tests (backend)
+
+```bash
+cd backend
+pip install -r requirements-dev.txt   # una sola vez
+pytest -m "not integration"           # unitarios (rapidos, sin red)
+pytest                                # suite completa: integracion contra la DB del .env
+```
+
 ---
 
 ## Estructura del repositorio
@@ -441,6 +450,7 @@ agent_induccion/
     │   ├── requirements.txt
     │   ├── .env.example      ← copiar a .env y editar
     │   ├── alembic/          ← migraciones de DB
+    │   ├── tests/            ← suite pytest (unit + integracion)
     │   └── app/
     │       ├── core/         ← config + JWT
     │       ├── db/           ← modelos + schemas
